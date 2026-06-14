@@ -6,6 +6,8 @@
 #include "driver/twai.h"
 #include "cJSON.h"
 #include "can_msg_queue.h"
+#include "web.h"
+#include "joints_storage.h"
 
 static const char *TAG = "web";
 
@@ -101,6 +103,77 @@ static esp_err_t send_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t config_get_handler(httpd_req_t *req)
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "{\"numJoints\":%d}", NUM_JOINTS);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
+    return ESP_OK;
+}
+
+static esp_err_t control_post_handler(httpd_req_t *req)
+{
+    char buf[128];
+    int len = req->content_len;
+    if (len >= (int)sizeof(buf)) len = sizeof(buf) - 1;
+    httpd_req_recv(req, buf, len);
+    buf[len] = 0;
+
+    cJSON *json = cJSON_Parse(buf);
+    if (!json) {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false}");
+        return ESP_OK;
+    }
+
+    cJSON *dir_item = cJSON_GetObjectItem(json, "dir");
+    if (dir_item && dir_item->valuestring) {
+        ESP_LOGI(TAG, "Control: %s", dir_item->valuestring);
+        cJSON_Delete(json);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":true}");
+        return ESP_OK;
+    }
+
+    cJSON *joint_item = cJSON_GetObjectItem(json, "joint");
+    cJSON *angle_item = cJSON_GetObjectItem(json, "angle");
+
+    if (!joint_item || !angle_item) {
+        cJSON_Delete(json);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"faltan campos\"}");
+        return ESP_OK;
+    }
+
+    int joint = joint_item->valueint;
+    float angle = (float)angle_item->valuedouble;
+    cJSON_Delete(json);
+
+    uint32_t can_id = CAN_BASE_ID + joint;
+    twai_message_t msg = {
+        .identifier = can_id,
+        .extd = 0,
+        .rtr = 0,
+        .data_length_code = 8,
+    };
+    float velocity = 0;
+    memcpy(&msg.data[0], &angle, 4);
+    memcpy(&msg.data[4], &velocity, 4);
+
+    esp_err_t err = twai_transmit(&msg, pdMS_TO_TICKS(100));
+
+    httpd_resp_set_type(req, "application/json");
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Joint %d angle=%.2f -> CAN 0x%lX", joint, angle, can_id);
+        httpd_resp_sendstr(req, "{\"ok\":true}");
+    } else {
+        ESP_LOGE(TAG, "TX fallo joint %d err=%s", joint, esp_err_to_name(err));
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"tx fallo\"}");
+    }
+    return ESP_OK;
+}
+
 static esp_err_t send_cal_post_handler(httpd_req_t *req)
 {
     char buf[256];
@@ -156,6 +229,157 @@ static esp_err_t send_cal_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t points_get_handler(httpd_req_t *req)
+{
+    char buf[512];
+    int off = 0;
+    off += snprintf(buf + off, sizeof(buf) - off, "{\"count\":%d,\"points\":[", joints_get_count());
+    for (int i = 0; i < joints_get_count(); i++) {
+        if (i > 0) off += snprintf(buf + off, sizeof(buf) - off, ",");
+        const joint_point_t *p = joints_get(i);
+        off += snprintf(buf + off, sizeof(buf) - off, "[");
+        for (int j = 0; j < NUM_JOINTS; j++) {
+            if (j > 0) off += snprintf(buf + off, sizeof(buf) - off, ",");
+            off += snprintf(buf + off, sizeof(buf) - off, "%.1f", p->angles[j]);
+        }
+        off += snprintf(buf + off, sizeof(buf) - off, "]");
+    }
+    off += snprintf(buf + off, sizeof(buf) - off, "]}");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
+    return ESP_OK;
+}
+
+static esp_err_t points_post_handler(httpd_req_t *req)
+{
+    char buf[512];
+    int len = req->content_len;
+    if (len >= (int)sizeof(buf)) len = sizeof(buf) - 1;
+    httpd_req_recv(req, buf, len);
+    buf[len] = 0;
+
+    cJSON *json = cJSON_Parse(buf);
+    if (!json) {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false}");
+        return ESP_OK;
+    }
+
+    cJSON *angles = cJSON_GetObjectItem(json, "angles");
+    if (!angles || !cJSON_IsArray(angles)) {
+        cJSON_Delete(json);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"faltan angles\"}");
+        return ESP_OK;
+    }
+
+    float arr[NUM_JOINTS];
+    int n = cJSON_GetArraySize(angles);
+    if (n > NUM_JOINTS) n = NUM_JOINTS;
+    for (int i = 0; i < n; i++) {
+        cJSON *item = cJSON_GetArrayItem(angles, i);
+        arr[i] = item ? (float)item->valuedouble : 0;
+    }
+    cJSON_Delete(json);
+
+    int idx = joints_add(arr);
+    httpd_resp_set_type(req, "application/json");
+    if (idx >= 0) {
+        httpd_resp_sendstr(req, "{\"ok\":true}");
+    } else {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"lleno\"}");
+    }
+    return ESP_OK;
+}
+
+static esp_err_t points_load_handler(httpd_req_t *req)
+{
+    char buf[128];
+    int len = req->content_len;
+    if (len >= (int)sizeof(buf)) len = sizeof(buf) - 1;
+    httpd_req_recv(req, buf, len);
+    buf[len] = 0;
+
+    cJSON *json = cJSON_Parse(buf);
+    if (!json) {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false}");
+        return ESP_OK;
+    }
+
+    cJSON *idx_item = cJSON_GetObjectItem(json, "index");
+    if (!idx_item) {
+        cJSON_Delete(json);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"faltan index\"}");
+        return ESP_OK;
+    }
+
+    int idx = idx_item->valueint;
+    cJSON_Delete(json);
+
+    const joint_point_t *p = joints_get(idx);
+    if (!p) {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"indice invalido\"}");
+        return ESP_OK;
+    }
+
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        uint32_t can_id = CAN_BASE_ID + i;
+        twai_message_t msg = {
+            .identifier = can_id,
+            .extd = 0,
+            .rtr = 0,
+            .data_length_code = 8,
+        };
+        float velocity = 0;
+        memcpy(&msg.data[0], &p->angles[i], 4);
+        memcpy(&msg.data[4], &velocity, 4);
+        twai_transmit(&msg, pdMS_TO_TICKS(100));
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static esp_err_t points_delete_handler(httpd_req_t *req)
+{
+    char buf[128];
+    int len = req->content_len;
+    if (len >= (int)sizeof(buf)) len = sizeof(buf) - 1;
+    httpd_req_recv(req, buf, len);
+    buf[len] = 0;
+
+    cJSON *json = cJSON_Parse(buf);
+    if (!json) {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false}");
+        return ESP_OK;
+    }
+
+    cJSON *idx_item = cJSON_GetObjectItem(json, "index");
+    if (!idx_item) {
+        cJSON_Delete(json);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"faltan index\"}");
+        return ESP_OK;
+    }
+
+    int idx = idx_item->valueint;
+    cJSON_Delete(json);
+
+    int ok = joints_delete(idx);
+    httpd_resp_set_type(req, "application/json");
+    if (ok == 0) {
+        httpd_resp_sendstr(req, "{\"ok\":true}");
+    } else {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"indice invalido\"}");
+    }
+    return ESP_OK;
+}
+
 void init_web_server(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -174,6 +398,24 @@ void init_web_server(void)
         });
         httpd_register_uri_handler(server, &(httpd_uri_t){
             .uri = "/api/send_cal", .method = HTTP_POST, .handler = send_cal_post_handler
+        });
+        httpd_register_uri_handler(server, &(httpd_uri_t){
+            .uri = "/api/config", .method = HTTP_GET, .handler = config_get_handler
+        });
+        httpd_register_uri_handler(server, &(httpd_uri_t){
+            .uri = "/api/control", .method = HTTP_POST, .handler = control_post_handler
+        });
+        httpd_register_uri_handler(server, &(httpd_uri_t){
+            .uri = "/api/points", .method = HTTP_GET, .handler = points_get_handler
+        });
+        httpd_register_uri_handler(server, &(httpd_uri_t){
+            .uri = "/api/points", .method = HTTP_POST, .handler = points_post_handler
+        });
+        httpd_register_uri_handler(server, &(httpd_uri_t){
+            .uri = "/api/points/load", .method = HTTP_POST, .handler = points_load_handler
+        });
+        httpd_register_uri_handler(server, &(httpd_uri_t){
+            .uri = "/api/points/delete", .method = HTTP_POST, .handler = points_delete_handler
         });
         ESP_LOGI(TAG, "Servidor HTTP iniciado en puerto 80");
     } else {
