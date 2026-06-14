@@ -170,19 +170,23 @@
             setTimeout(pollMessages, 1000);
         }
 
-        async function jointClick(joint, delta) {
-            const el = document.getElementById('angle-' + joint);
-            let angle = parseFloat(el.textContent) + delta;
-            angle = Math.round(angle * 10) / 10;
-            el.textContent = angle.toFixed(1);
+        async function fetchJoints() {
+            const r = await fetch('/api/joints');
+            const data = await r.json();
+            for (let i = 0; i < data.joints.length; i++) {
+                document.getElementById('angle-' + i).textContent = data.joints[i].toFixed(1);
+            }
+        }
 
+        async function jointClick(joint, delta) {
             try {
                 await fetch('/api/control', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({joint, angle})
+                    body: JSON.stringify({joint, delta})
                 });
             } catch (e) {}
+            fetchJoints();
         }
 
         async function fetchSaved() {
@@ -266,7 +270,9 @@
                 `;
                 container.appendChild(row);
             }
+            fetchJoints();
             fetchSaved();
+            setInterval(fetchJoints, 500);
         }
 
         initControl();

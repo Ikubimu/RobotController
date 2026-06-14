@@ -8,8 +8,10 @@
 #include "can_msg_queue.h"
 #include "web.h"
 #include "joints_storage.h"
+#include "Arm.hpp"
 
 static const char *TAG = "web";
+extern Arm arm;
 
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
@@ -106,6 +108,22 @@ static esp_err_t config_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t joints_get_handler(httpd_req_t *req)
+{
+    auto positions = arm.getPos();
+    char buf[256];
+    int off = 0;
+    off += snprintf(buf + off, sizeof(buf) - off, "{\"joints\":[");
+    for (size_t i = 0; i < positions.size(); i++) {
+        if (i > 0) off += snprintf(buf + off, sizeof(buf) - off, ",");
+        off += snprintf(buf + off, sizeof(buf) - off, "%.1f", positions[i]);
+    }
+    off += snprintf(buf + off, sizeof(buf) - off, "]}");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
+    return ESP_OK;
+}
+
 static esp_err_t control_post_handler(httpd_req_t *req)
 {
     char buf[128];
@@ -131,9 +149,9 @@ static esp_err_t control_post_handler(httpd_req_t *req)
     }
 
     cJSON *joint_item = cJSON_GetObjectItem(json, "joint");
-    cJSON *angle_item = cJSON_GetObjectItem(json, "angle");
+    cJSON *delta_item = cJSON_GetObjectItem(json, "delta");
 
-    if (!joint_item || !angle_item) {
+    if (!joint_item || !delta_item) {
         cJSON_Delete(json);
         httpd_resp_set_type(req, "application/json");
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"faltan campos\"}");
@@ -141,25 +159,23 @@ static esp_err_t control_post_handler(httpd_req_t *req)
     }
 
     int joint = joint_item->valueint;
-    float angle = (float)angle_item->valuedouble;
+    float delta = (float)delta_item->valuedouble;
+
+    auto positions = arm.getPos();
+    if (joint < 0 || (size_t)joint >= positions.size()) {
+        cJSON_Delete(json);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"joint invalido\"}");
+        return ESP_OK;
+    }
+
+    float newDeg = positions[joint] + delta;
     cJSON_Delete(json);
 
-    uint32_t can_id = CAN_BASE_ID + joint;
-    uint8_t data[8] = {0};
-    float velocity = 0;
-    memcpy(&data[0], &angle, 4);
-    memcpy(&data[4], &velocity, 4);
-
-    bool ok = CommunicationHandler::sendMessage(can_id, data, 8);
+    arm.RotateJoint(joint, newDeg, ARM_DEFAULT_VEL);
 
     httpd_resp_set_type(req, "application/json");
-    if (ok) {
-        ESP_LOGI(TAG, "Joint %d angle=%.2f -> CAN 0x%lX", joint, angle, can_id);
-        httpd_resp_sendstr(req, "{\"ok\":true}");
-    } else {
-        ESP_LOGE(TAG, "TX fallo joint %d", joint);
-        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"tx fallo\"}");
-    }
+    httpd_resp_sendstr(req, "{\"ok\":true}");
     return ESP_OK;
 }
 
@@ -291,30 +307,22 @@ static esp_err_t points_load_handler(httpd_req_t *req)
     }
 
     cJSON *idx_item = cJSON_GetObjectItem(json, "index");
-    if (!idx_item) {
+    cJSON *mode_item = cJSON_GetObjectItem(json, "mode");
+    if (!idx_item || !mode_item || !mode_item->valuestring) {
         cJSON_Delete(json);
         httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"faltan index\"}");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"faltan campos\"}");
         return ESP_OK;
     }
 
     int idx = idx_item->valueint;
+    char mode = mode_item->valuestring[0];
     cJSON_Delete(json);
 
-    const joint_point_t *p = joints_get(idx);
-    if (!p) {
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"indice invalido\"}");
-        return ESP_OK;
-    }
-
-    for (int i = 0; i < NUM_JOINTS; i++) {
-        uint32_t can_id = CAN_BASE_ID + i;
-        uint8_t data[8] = {0};
-        float velocity = 0;
-        memcpy(&data[0], &p->angles[i], 4);
-        memcpy(&data[4], &velocity, 4);
-        CommunicationHandler::sendMessage(can_id, data, 8);
+    if (mode == 'J') {
+        arm.MoveJ(idx, ARM_DEFAULT_VEL);
+    } else {
+        arm.MoveL(idx, ARM_DEFAULT_VEL);
     }
 
     httpd_resp_set_type(req, "application/json");
@@ -362,11 +370,7 @@ void init_web_server(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80;
-
-#define REG_URI(uri, method, handler) do { \
-        httpd_uri_t u = {.uri = uri, .method = method, .handler = handler}; \
-        httpd_register_uri_handler(server, &u); \
-    } while(0)
+    config.max_uri_handlers = 16;
 
     httpd_handle_t server = NULL;
     if (httpd_start(&server, &config) == ESP_OK) {
@@ -382,6 +386,7 @@ void init_web_server(void)
         reg("/api/send", HTTP_POST, send_post_handler);
         reg("/api/send_cal", HTTP_POST, send_cal_post_handler);
         reg("/api/config", HTTP_GET, config_get_handler);
+        reg("/api/joints", HTTP_GET, joints_get_handler);
         reg("/api/control", HTTP_POST, control_post_handler);
         reg("/api/points", HTTP_GET, points_get_handler);
         reg("/api/points", HTTP_POST, points_post_handler);

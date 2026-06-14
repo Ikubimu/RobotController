@@ -11,8 +11,8 @@ class Arm {
 public:
     Arm(uint8_t numJoints);
 
-    void MoveL(uint8_t id, float vel = ARM_DEFAULT_VEL, float acc = ARM_DEFAULT_ACC);
-    void MoveJ(uint8_t id, float vel = ARM_DEFAULT_VEL, float acc = ARM_DEFAULT_ACC);
+    void MoveL(uint8_t pointIndex, float vel = ARM_DEFAULT_VEL, float acc = ARM_DEFAULT_ACC);
+    void MoveJ(uint8_t pointIndex, float vel = ARM_DEFAULT_VEL, float acc = ARM_DEFAULT_ACC);
     void RotateJoint(uint8_t id, float pos, float vel = ARM_DEFAULT_VEL);
     std::vector<float> getPos() const;
 

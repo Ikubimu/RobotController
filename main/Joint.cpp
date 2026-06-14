@@ -28,9 +28,6 @@ void Joint::setPos(float vel, float pos)
     std::memcpy(&data[4], &pos, sizeof(float));
 
     CommunicationHandler::sendMessage(canId, data, 8);
-
-    this->vel = vel;
-    this->pos = pos;
 }
 
 void Joint::update(float vel, float pos)

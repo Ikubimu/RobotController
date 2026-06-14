@@ -9,8 +9,10 @@
 #include "esp_netif.h"
 #include "state_machine.hpp"
 #include "communication_handler.hpp"
+#include "Arm.hpp"
 
 static const char *TAG = "CAN";
+Arm arm(NUM_JOINTS);
 
 static void sync_time(void)
 {
