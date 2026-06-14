@@ -14,8 +14,16 @@ typedef struct {
     time_t timestamp;
 } can_msg_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void can_msg_queue_init(void);
 void can_msg_queue_push(const twai_message_t *msg);
 int can_msg_queue_get(can_msg_t *out, int max_count);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

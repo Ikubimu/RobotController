@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include "esp_http_server.h"
 #include "esp_log.h"
-#include "driver/twai.h"
+#include "communication_handler.hpp"
 #include "cJSON.h"
 #include "can_msg_queue.h"
 #include "web.h"
@@ -80,24 +80,18 @@ static esp_err_t send_post_handler(httpd_req_t *req)
 
     cJSON_Delete(json);
 
-    twai_message_t msg = {
-        .identifier = can_id,
-        .extd = 0,
-        .rtr = 0,
-        .data_length_code = 8,
-    };
+    uint8_t data[8] = {0};
+    memcpy(&data[0], &position, 4);
+    memcpy(&data[4], &velocity, 4);
 
-    memcpy(&msg.data[0], &position, 4);
-    memcpy(&msg.data[4], &velocity, 4);
-
-    esp_err_t err = twai_transmit(&msg, pdMS_TO_TICKS(100));
+    bool ok = CommunicationHandler::sendMessage(can_id, data, 8);
 
     httpd_resp_set_type(req, "application/json");
-    if (err == ESP_OK) {
+    if (ok) {
         ESP_LOGI(TAG, "TX 0x%lX pos=%.2f vel=%.2f", can_id, position, velocity);
         httpd_resp_sendstr(req, "{\"ok\":true}");
     } else {
-        ESP_LOGE(TAG, "TX fallo 0x%lX err=%s", can_id, esp_err_to_name(err));
+        ESP_LOGE(TAG, "TX fallo 0x%lX", can_id);
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"tx fallo\"}");
     }
     return ESP_OK;
@@ -151,24 +145,19 @@ static esp_err_t control_post_handler(httpd_req_t *req)
     cJSON_Delete(json);
 
     uint32_t can_id = CAN_BASE_ID + joint;
-    twai_message_t msg = {
-        .identifier = can_id,
-        .extd = 0,
-        .rtr = 0,
-        .data_length_code = 8,
-    };
+    uint8_t data[8] = {0};
     float velocity = 0;
-    memcpy(&msg.data[0], &angle, 4);
-    memcpy(&msg.data[4], &velocity, 4);
+    memcpy(&data[0], &angle, 4);
+    memcpy(&data[4], &velocity, 4);
 
-    esp_err_t err = twai_transmit(&msg, pdMS_TO_TICKS(100));
+    bool ok = CommunicationHandler::sendMessage(can_id, data, 8);
 
     httpd_resp_set_type(req, "application/json");
-    if (err == ESP_OK) {
+    if (ok) {
         ESP_LOGI(TAG, "Joint %d angle=%.2f -> CAN 0x%lX", joint, angle, can_id);
         httpd_resp_sendstr(req, "{\"ok\":true}");
     } else {
-        ESP_LOGE(TAG, "TX fallo joint %d err=%s", joint, esp_err_to_name(err));
+        ESP_LOGE(TAG, "TX fallo joint %d", joint);
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"tx fallo\"}");
     }
     return ESP_OK;
@@ -206,24 +195,18 @@ static esp_err_t send_cal_post_handler(httpd_req_t *req)
 
     cJSON_Delete(json);
 
-    twai_message_t msg = {
-        .identifier = can_id,
-        .extd = 0,
-        .rtr = 0,
-        .data_length_code = 6,
-    };
+    uint8_t data[8] = {0};
+    memcpy(&data[0], &position, 4);
+    memcpy(&data[4], &ratio, 2);
 
-    memcpy(&msg.data[0], &position, 4);
-    memcpy(&msg.data[4], &ratio, 2);
-
-    esp_err_t err = twai_transmit(&msg, pdMS_TO_TICKS(100));
+    bool ok = CommunicationHandler::sendMessage(can_id, data, 6);
 
     httpd_resp_set_type(req, "application/json");
-    if (err == ESP_OK) {
+    if (ok) {
         ESP_LOGI(TAG, "CAL 0x%lX pos=%.2f ratio=%u", can_id, position, ratio);
         httpd_resp_sendstr(req, "{\"ok\":true}");
     } else {
-        ESP_LOGE(TAG, "CAL fallo 0x%lX err=%s", can_id, esp_err_to_name(err));
+        ESP_LOGE(TAG, "CAL fallo 0x%lX", can_id);
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"tx fallo\"}");
     }
     return ESP_OK;
@@ -327,16 +310,11 @@ static esp_err_t points_load_handler(httpd_req_t *req)
 
     for (int i = 0; i < NUM_JOINTS; i++) {
         uint32_t can_id = CAN_BASE_ID + i;
-        twai_message_t msg = {
-            .identifier = can_id,
-            .extd = 0,
-            .rtr = 0,
-            .data_length_code = 8,
-        };
+        uint8_t data[8] = {0};
         float velocity = 0;
-        memcpy(&msg.data[0], &p->angles[i], 4);
-        memcpy(&msg.data[4], &velocity, 4);
-        twai_transmit(&msg, pdMS_TO_TICKS(100));
+        memcpy(&data[0], &p->angles[i], 4);
+        memcpy(&data[4], &velocity, 4);
+        CommunicationHandler::sendMessage(can_id, data, 8);
     }
 
     httpd_resp_set_type(req, "application/json");
@@ -385,38 +363,30 @@ void init_web_server(void)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80;
 
+#define REG_URI(uri, method, handler) do { \
+        httpd_uri_t u = {.uri = uri, .method = method, .handler = handler}; \
+        httpd_register_uri_handler(server, &u); \
+    } while(0)
+
     httpd_handle_t server = NULL;
     if (httpd_start(&server, &config) == ESP_OK) {
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/", .method = HTTP_GET, .handler = root_get_handler
-        });
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/api/messages", .method = HTTP_GET, .handler = messages_get_handler
-        });
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/api/send", .method = HTTP_POST, .handler = send_post_handler
-        });
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/api/send_cal", .method = HTTP_POST, .handler = send_cal_post_handler
-        });
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/api/config", .method = HTTP_GET, .handler = config_get_handler
-        });
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/api/control", .method = HTTP_POST, .handler = control_post_handler
-        });
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/api/points", .method = HTTP_GET, .handler = points_get_handler
-        });
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/api/points", .method = HTTP_POST, .handler = points_post_handler
-        });
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/api/points/load", .method = HTTP_POST, .handler = points_load_handler
-        });
-        httpd_register_uri_handler(server, &(httpd_uri_t){
-            .uri = "/api/points/delete", .method = HTTP_POST, .handler = points_delete_handler
-        });
+        auto reg = [&server](const char* uri, httpd_method_t method, esp_err_t (*handler)(httpd_req_t*)) {
+            httpd_uri_t u = {};
+            u.uri = uri;
+            u.method = method;
+            u.handler = handler;
+            httpd_register_uri_handler(server, &u);
+        };
+        reg("/", HTTP_GET, root_get_handler);
+        reg("/api/messages", HTTP_GET, messages_get_handler);
+        reg("/api/send", HTTP_POST, send_post_handler);
+        reg("/api/send_cal", HTTP_POST, send_cal_post_handler);
+        reg("/api/config", HTTP_GET, config_get_handler);
+        reg("/api/control", HTTP_POST, control_post_handler);
+        reg("/api/points", HTTP_GET, points_get_handler);
+        reg("/api/points", HTTP_POST, points_post_handler);
+        reg("/api/points/load", HTTP_POST, points_load_handler);
+        reg("/api/points/delete", HTTP_POST, points_delete_handler);
         ESP_LOGI(TAG, "Servidor HTTP iniciado en puerto 80");
     } else {
         ESP_LOGE(TAG, "Error al iniciar servidor HTTP en puerto 80");
