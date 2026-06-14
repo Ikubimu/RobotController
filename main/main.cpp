@@ -10,23 +10,15 @@
 #include "web.h"
 #include "can_msg_queue.h"
 #include "esp_netif.h"
+#include "state_machine.hpp"
 
 #define CAN_TX GPIO_NUM_21
 #define CAN_RX GPIO_NUM_22
 
 static const char *TAG = "CAN";
 
-void app_main(void)
+static void sync_time(void)
 {
-    wifi_init_sta();
-
-    xEventGroupWaitBits(wifi_get_event_group(), WIFI_CONNECTED_BIT,
-                        pdFALSE, pdTRUE, portMAX_DELAY);
-
-    esp_netif_ip_info_t ip;
-    esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("STA_DEF"), &ip);
-    ESP_LOGI(TAG, "WiFi IP: " IPSTR, IP2STR(&ip.ip));
-
     ESP_LOGI(TAG, "Sincronizando hora via NTP...");
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
     esp_sntp_setservername(0, "pool.ntp.org");
@@ -46,6 +38,22 @@ void app_main(void)
     } else {
         ESP_LOGW(TAG, "No se pudo sincronizar hora NTP");
     }
+}
+
+void app_main(void)
+{
+    wifi_init_sta();
+
+    xEventGroupWaitBits(wifi_get_event_group(), WIFI_CONNECTED_BIT,
+                        pdFALSE, pdTRUE, portMAX_DELAY);
+
+    esp_netif_ip_info_t ip;
+    esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("STA_DEF"), &ip);
+    ESP_LOGI(TAG, "WiFi IP: " IPSTR, IP2STR(&ip.ip));
+
+    sync_time();
+
+    StateMachine &sm = StateMachine::get();
 
     init_web_server();
 
@@ -100,7 +108,8 @@ void app_main(void)
         //     }
         // }
 
-        // 🔵 recepción
+        sm.update();
+
         twai_message_t rx_msg;
 
         if (twai_receive(&rx_msg, pdMS_TO_TICKS(10)) == ESP_OK)
