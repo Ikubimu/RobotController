@@ -1,0 +1,11 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "idf.extensionActivationMode": "always",
+  "clangd.path": "/home/iker-ubide/.espressif/tools/esp-clang/15.0.0-23786128ae/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=/home/iker-ubide/esp-idf/proyectos/TestCANJointController/build"
+  ],
+  "idf.currentSetup": "/home/iker-ubide/esp-idf/v5.1.6/esp-idf"
+}

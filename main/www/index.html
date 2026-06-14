@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestCANJointController</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        h1 { color: #fff; margin-bottom: 20px; font-size: 18px; }
+        .tabs { display: flex; gap: 2px; margin-bottom: 20px; }
+        .tabs button {
+            background: #2d2d2d; color: #999; border: none; padding: 10px 24px;
+            cursor: pointer; font-family: monospace; font-size: 14px; border-radius: 4px 4px 0 0;
+        }
+        .tabs button.active { background: #0e639c; color: #fff; }
+        .tab-content {
+            background: #252526; border-radius: 0 4px 4px 4px; padding: 16px;
+            min-height: 400px;
+        }
+        #can-output {
+            width: 100%; height: 360px; background: #1e1e1e; color: #d4d4d4;
+            border: 1px solid #3c3c3c; padding: 10px; font-family: monospace; font-size: 13px;
+            resize: none; outline: none; overflow-y: auto; white-space: pre;
+        }
+        .stats { margin-top: 8px; color: #888; font-size: 12px; }
+        .field { margin-bottom: 14px; }
+        .field label { display: block; color: #aaa; font-size: 12px; margin-bottom: 4px; }
+        .field input {
+            width: 100%; max-width: 300px; background: #1e1e1e; color: #d4d4d4;
+            border: 1px solid #3c3c3c; padding: 8px 10px; font-family: monospace; font-size: 14px;
+            outline: none;
+        }
+        .field input:focus { border-color: #0e639c; }
+        #tx-btn {
+            background: #0e639c; color: #fff; border: none; padding: 10px 28px;
+            font-family: monospace; font-size: 14px; cursor: pointer; border-radius: 4px;
+            margin-top: 6px;
+        }
+        #tx-btn:hover { background: #1177bb; }
+        #tx-status { margin-top: 10px; font-size: 13px; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>TestCANJointController</h1>
+    <div class="tabs">
+        <button class="active" onclick="switchTab('can')">Monitor CAN</button>
+        <button onclick="switchTab('tx')">TX Manual</button>
+    </div>
+    <div id="tab-can" class="tab-content">
+        <textarea id="can-output" readonly></textarea>
+        <div class="stats" id="stats">Esperando mensajes...</div>
+    </div>
+    <div id="tab-tx" class="tab-content" style="display:none">
+        <div class="field">
+            <label>ID (hex)</label>
+            <input type="text" id="tx-id" value="123" placeholder="ej: 123">
+        </div>
+        <div class="field">
+            <label>Posición (grados)</label>
+            <input type="number" id="tx-pos" value="0" step="0.1" placeholder="0.0">
+        </div>
+        <div class="field">
+            <label>Velocidad (rad/s)</label>
+            <input type="number" id="tx-vel" value="0" step="0.01" placeholder="0.0">
+        </div>
+        <button id="tx-btn" onclick="sendCanMsg()">Enviar CAN</button>
+        <div id="tx-status"></div>
+
+        <hr style="border-color:#3c3c3c; margin: 24px 0;">
+        <h3 style="color:#ccc; margin-bottom:14px;">Calibración</h3>
+
+        <div class="field">
+            <label>ID (hex)</label>
+            <input type="text" id="cal-id" value="456" placeholder="ej: 456">
+        </div>
+        <div class="field">
+            <label>Posición (grados)</label>
+            <input type="number" id="cal-pos" value="0" step="0.1" placeholder="0.0">
+        </div>
+        <div class="field">
+            <label>Ratio (uint16)</label>
+            <input type="number" id="cal-ratio" value="0" min="0" max="65535" placeholder="0-65535">
+        </div>
+        <button id="tx-btn" onclick="sendCal()" style="background:#2d8c2d;">Enviar Calibración</button>
+        <div id="cal-status" style="margin-top: 10px; font-size: 13px; color: #888;"></div>
+    </div>
+
+    <script>
+        let msgCount = 0;
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab-content').forEach(e => e.style.display = 'none');
+            document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + name).style.display = 'block';
+            event.target.classList.add('active');
+            if (name === 'can') pollMessages();
+        }
+
+        function formatMsg(m) {
+            const d = new Date(m.t * 1000);
+            const time = d.toLocaleTimeString('es-ES', {hour12: false});
+            return `[${time}] ID: ${m.id.padEnd(6)} DLC: ${m.dlc}  DATA: ${m.data}`;
+        }
+
+        async function pollMessages() {
+            const tab = document.getElementById('tab-can');
+            if (tab.style.display === 'none') return;
+
+            try {
+                const r = await fetch('/api/messages');
+                const msgs = await r.json();
+                const out = document.getElementById('can-output');
+                out.value = msgs.map(formatMsg).reverse().join('\n');
+                out.scrollTop = out.scrollHeight;
+                msgCount = msgs.length;
+                const lastTime = msgs.length
+                    ? new Date(msgs[msgs.length-1].t * 1000).toLocaleTimeString('es-ES', {hour12: false})
+                    : '-';
+                document.getElementById('stats').textContent =
+                    `Mensajes: ${msgCount} | Último: ${lastTime}`;
+            } catch (e) {
+                document.getElementById('stats').textContent = 'Error conectando...';
+            }
+            setTimeout(pollMessages, 1000);
+        }
+
+        async function sendCal() {
+            const id = parseInt(document.getElementById('cal-id').value, 16);
+            const pos = parseFloat(document.getElementById('cal-pos').value);
+            const ratio = parseInt(document.getElementById('cal-ratio').value);
+            const status = document.getElementById('cal-status');
+
+            if (isNaN(id) || id < 0 || id > 0x7FF) {
+                status.textContent = 'ID inválido (0-7FF)';
+                return;
+            }
+            if (isNaN(ratio) || ratio < 0 || ratio > 65535) {
+                status.textContent = 'Ratio inválido (0-65535)';
+                return;
+            }
+
+            status.textContent = 'Enviando...';
+            try {
+                const r = await fetch('/api/send_cal', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id, pos, ratio})
+                });
+                const result = await r.json();
+                status.textContent = result.ok ? '✅ Enviado' : '❌ Error: ' + (result.error || 'desconocido');
+            } catch (e) {
+                status.textContent = '❌ Error de red';
+            }
+        }
+
+        async function sendCanMsg() {
+            const id = parseInt(document.getElementById('tx-id').value, 16);
+            const pos = parseFloat(document.getElementById('tx-pos').value);
+            const vel = parseFloat(document.getElementById('tx-vel').value);
+            const status = document.getElementById('tx-status');
+
+            if (isNaN(id) || id < 0 || id > 0x7FF) {
+                status.textContent = 'ID inválido (0-7FF)';
+                return;
+            }
+
+            status.textContent = 'Enviando...';
+
+            try {
+                const r = await fetch('/api/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id, pos, vel})
+                });
+                const result = await r.json();
+                status.textContent = result.ok ? '✅ Enviado' : '❌ Error: ' + (result.error || 'desconocido');
+            } catch (e) {
+                status.textContent = '❌ Error de red';
+            }
+        }
+
+        pollMessages();
+    </script>
+</body>
+</html>
