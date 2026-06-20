@@ -8,7 +8,12 @@
 #define MAX_SERVICES 8
 #define MAX_JOINT_SERVICES 8
 #define MAX_JOINTS 6
-#define JOINT_STATUS_ID 0x02
+
+
+// CAN command IDs
+#define CALIBRATION_CAN_ID      0x01
+#define JOINT_STATUS_CAN_ID     0x02
+#define SET_POSITION_CAN_ID     0x03
 
 typedef struct {
     uint32_t id;

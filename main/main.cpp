@@ -23,7 +23,7 @@ static void sync_time(void)
     esp_sntp_init();
 
     time_t now = 0;
-    struct tm ti = {0};
+    struct tm ti = {};
     int retry = 0;
     while (ti.tm_year < (2024 - 1900) && retry < 20) {
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -57,12 +57,11 @@ extern "C" void app_main(void)
 
     CommunicationHandler::start(0);
 
-    CommunicationHandler::registerJointService(JOINT_STATUS_ID, [](const CAN_Message *msg) {
+    CommunicationHandler::registerJointService(JOINT_STATUS_CAN_ID, [](const CAN_Message *msg) {
         uint8_t jointId = (msg->id >> 8) & 0xFF;
         float pos, vel;
         memcpy(&pos, &msg->data[0], sizeof(float));
         memcpy(&vel, &msg->data[4], sizeof(float));
-        ESP_LOGI(TAG, "Joint %d status: pos=%.2f vel=%.2f", jointId, pos, vel);
         arm.updateJoint(jointId, vel, pos);
     });
 
