@@ -38,6 +38,12 @@ void Arm::MoveL(uint8_t pointIndex, float vel, float acc)
     // TO DO: Implement linear interpolation for MoveL
 }
 
+void Arm::updateJoint(uint8_t id, float vel, float pos)
+{
+    if (id > joints.size() || id < 1) return;
+    joints[id - 1].update(vel, pos);
+}
+
 void Arm::RotateJoint(uint8_t id, float pos, float vel)
 {
     if (id >= joints.size()) return;

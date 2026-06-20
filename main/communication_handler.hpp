@@ -6,6 +6,9 @@
 #include "driver/twai.h"
 
 #define MAX_SERVICES 8
+#define MAX_JOINT_SERVICES 8
+#define MAX_JOINTS 6
+#define JOINT_STATUS_ID 0x02
 
 typedef struct {
     uint32_t id;
@@ -20,6 +23,8 @@ public:
     static bool start(uint8_t device_id);
     static bool registerService(uint16_t canId,
                                 std::function<void(const CAN_Message*)> callback);
+    static bool registerJointService(uint8_t cmdId,
+                                     std::function<void(const CAN_Message*)> callback);
     static bool sendMessage(uint32_t id, const uint8_t *data, uint8_t dlc);
 
 private:
@@ -32,7 +37,9 @@ private:
     static void run();
 
     static ServiceEntry services[MAX_SERVICES];
+    static ServiceEntry jointServices[MAX_JOINT_SERVICES];
     static uint8_t numServices;
+    static uint8_t numJointServices;
     static bool initialized;
     static uint8_t deviceId;
 };

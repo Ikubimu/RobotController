@@ -8,7 +8,9 @@
 static const char *TAG = "CAN";
 
 CommunicationHandler::ServiceEntry CommunicationHandler::services[MAX_SERVICES] = {};
+CommunicationHandler::ServiceEntry CommunicationHandler::jointServices[MAX_JOINT_SERVICES] = {};
 uint8_t CommunicationHandler::numServices = 0;
+uint8_t CommunicationHandler::numJointServices = 0;
 bool CommunicationHandler::initialized = false;
 uint8_t CommunicationHandler::deviceId = 0;
 
@@ -46,6 +48,17 @@ bool CommunicationHandler::registerService(uint16_t canId,
     services[numServices] = {canId, std::move(callback)};
     numServices++;
     ESP_LOGI(TAG, "Servicio registrado para ID 0x%03X", canId);
+    return true;
+}
+
+bool CommunicationHandler::registerJointService(uint8_t cmdId,
+        std::function<void(const CAN_Message*)> callback)
+{
+    if (numJointServices >= MAX_JOINT_SERVICES)
+        return false;
+    jointServices[numJointServices] = {cmdId, std::move(callback)};
+    numJointServices++;
+    ESP_LOGI(TAG, "Servicio registrado para comando 0x%02X", cmdId);
     return true;
 }
 
@@ -89,16 +102,25 @@ void CommunicationHandler::run()
             }
 
             if (!handled) {
+                uint8_t msb = (msg.id >> 8) & 0xFF;
+                if (msb >= 1 && msb <= MAX_JOINTS) {
+                    uint8_t cmd = msg.id & 0xFF;
+                    for (uint8_t i = 0; i < numJointServices; i++) {
+                        if (jointServices[i].id == cmd) {
+                            jointServices[i].callback(&msg);
+                            handled = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!handled) {
                 printf("CAN RX (unhandled): ID=0x%03lX DLC=%u Data=",
                        msg.id, msg.dlc);
                 for (uint8_t i = 0; i < msg.dlc; i++)
                     printf("%02X ", msg.data[i]);
                 printf("\r\n");
-
-                if (sendMessage(msg.id, msg.data, msg.dlc))
-                    printf("CAN TX echo OK\r\n");
-                else
-                    printf("CAN TX echo ERROR\r\n");
             }
         }
 

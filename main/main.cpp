@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -55,6 +56,15 @@ extern "C" void app_main(void)
     init_web_server();
 
     CommunicationHandler::start(0);
+
+    CommunicationHandler::registerJointService(JOINT_STATUS_ID, [](const CAN_Message *msg) {
+        uint8_t jointId = (msg->id >> 8) & 0xFF;
+        float pos, vel;
+        memcpy(&pos, &msg->data[0], sizeof(float));
+        memcpy(&vel, &msg->data[4], sizeof(float));
+        ESP_LOGI(TAG, "Joint %d status: pos=%.2f vel=%.2f", jointId, pos, vel);
+        arm.updateJoint(jointId, vel, pos);
+    });
 
     while (1)
     {
