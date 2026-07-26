@@ -173,7 +173,7 @@ static esp_err_t control_post_handler(httpd_req_t *req)
     float newDeg = positions[joint] + delta;
     cJSON_Delete(json);
 
-    arm.RotateJoint(joint, newDeg, ARM_DEFAULT_VEL);
+    arm.RotateJoint(joint, newDeg, ARM_DEFAULT_VEL_LIN);
 
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"ok\":true}");
@@ -321,9 +321,9 @@ static esp_err_t points_load_handler(httpd_req_t *req)
     cJSON_Delete(json);
 
     if (mode == 'J') {
-        arm.MoveJ(idx, ARM_DEFAULT_VEL);
+        arm.MoveJ(idx, ARM_DEFAULT_VEL_ANG);
     } else {
-        arm.MoveL(idx, ARM_DEFAULT_VEL);
+        arm.MoveL(idx, ARM_DEFAULT_VEL_LIN);
     }
 
     httpd_resp_set_type(req, "application/json");
@@ -406,6 +406,7 @@ void init_web_server(void)
         reg("/api/points", HTTP_POST, points_post_handler);
         reg("/api/points/load", HTTP_POST, points_load_handler);
         reg("/api/points/delete", HTTP_POST, points_delete_handler);
+        reg("/api/fk", HTTP_GET, fk_get_handler);
         ESP_LOGI(TAG, "Servidor HTTP iniciado en puerto 80");
     } else {
         ESP_LOGE(TAG, "Error al iniciar servidor HTTP en puerto 80");
