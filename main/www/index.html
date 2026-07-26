@@ -23,11 +23,6 @@
             border: 1px solid #3c3c3c; padding: 10px; font-family: monospace; font-size: 13px;
             resize: none; outline: none; overflow-y: auto; white-space: pre;
         }
-        #can-output {
-            width: 100%; height: 360px; background: #1e1e1e; color: #d4d4d4;
-            border: 1px solid #3c3c3c; padding: 10px; font-family: monospace; font-size: 13px;
-            resize: none; outline: none; overflow-y: auto; white-space: pre;
-        }
         .stats { margin-top: 8px; color: #888; font-size: 12px; }
         .joint-row {
             display: flex; align-items: center; gap: 12px;
@@ -82,17 +77,68 @@
         .led.red { background: #ff0000; box-shadow: 0 0 20px #ff0000; }
         .led.yellow { background: #ffdd00; box-shadow: 0 0 20px #ffdd00; }
         .led-label { color: #888; font-size: 14px; text-align: center; }
+        .field { margin-bottom: 14px; }
+        .field label { display: block; color: #aaa; font-size: 12px; margin-bottom: 4px; }
+        .field input {
+            width: 100%; max-width: 300px; background: #1e1e1e; color: #d4d4d4;
+            border: 1px solid #3c3c3c; padding: 8px 10px; font-family: monospace; font-size: 14px;
+            outline: none;
+        }
+        .field input:focus { border-color: #0e639c; }
+        #tx-btn {
+            background: #0e639c; color: #fff; border: none; padding: 10px 28px;
+            font-family: monospace; font-size: 14px; cursor: pointer; border-radius: 4px;
+            margin-top: 6px;
+        }
+        #tx-btn:hover { background: #1177bb; }
+        #tx-status { margin-top: 10px; font-size: 13px; color: #888; }
     </style>
 </head>
 <body>
     <h1>RobotController</h1>
     <div class="tabs">
         <button class="active" onclick="switchTab('can')">Monitor CAN</button>
+        <button onclick="switchTab('tx')">TX Manual</button>
         <button onclick="switchTab('ctrl')">Control</button>
     </div>
     <div id="tab-can" class="tab-content">
         <textarea id="can-output" readonly></textarea>
         <div class="stats" id="stats">Esperando mensajes...</div>
+    </div>
+
+    <div id="tab-tx" class="tab-content" style="display:none">
+        <div class="field">
+            <label>ID (hex)</label>
+            <input type="text" id="tx-id" value="123" placeholder="ej: 123">
+        </div>
+        <div class="field">
+            <label>Posición (grados)</label>
+            <input type="number" id="tx-pos" value="0" step="0.1" placeholder="0.0">
+        </div>
+        <div class="field">
+            <label>Velocidad (rad/s)</label>
+            <input type="number" id="tx-vel" value="0" step="0.01" placeholder="0.0">
+        </div>
+        <button id="tx-btn" onclick="sendCanMsg()">Enviar CAN</button>
+        <div id="tx-status"></div>
+
+        <hr style="border-color:#3c3c3c; margin: 24px 0;">
+        <h3 style="color:#ccc; margin-bottom:14px;">Calibración</h3>
+
+        <div class="field">
+            <label>ID (hex)</label>
+            <input type="text" id="cal-id" value="456" placeholder="ej: 456">
+        </div>
+        <div class="field">
+            <label>Posición (grados)</label>
+            <input type="number" id="cal-pos" value="0" step="0.1" placeholder="0.0">
+        </div>
+        <div class="field">
+            <label>Ratio (uint16)</label>
+            <input type="number" id="cal-ratio" value="0" min="0" max="65535" placeholder="0-65535">
+        </div>
+        <button id="tx-btn" onclick="sendCal()" style="background:#2d8c2d;">Enviar Calibración</button>
+        <div id="cal-status" style="margin-top: 10px; font-size: 13px; color: #888;"></div>
     </div>
 
     <div id="tab-ctrl" class="tab-content" style="display:none">
@@ -253,6 +299,56 @@
                 body: JSON.stringify({index: idx})
             });
             fetchSaved();
+        }
+
+        async function sendCal() {
+            const id = parseInt(document.getElementById('cal-id').value, 16);
+            const pos = parseFloat(document.getElementById('cal-pos').value);
+            const ratio = parseInt(document.getElementById('cal-ratio').value);
+            const status = document.getElementById('cal-status');
+            if (isNaN(id) || id < 0 || id > 0x7FF) {
+                status.textContent = 'ID inválido (0-7FF)';
+                return;
+            }
+            if (isNaN(ratio) || ratio < 0 || ratio > 65535) {
+                status.textContent = 'Ratio inválido (0-65535)';
+                return;
+            }
+            status.textContent = 'Enviando...';
+            try {
+                const r = await fetch('/api/send_cal', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id, pos, ratio})
+                });
+                const result = await r.json();
+                status.textContent = result.ok ? 'Enviado' : 'Error: ' + (result.error || 'desconocido');
+            } catch (e) {
+                status.textContent = 'Error de red';
+            }
+        }
+
+        async function sendCanMsg() {
+            const id = parseInt(document.getElementById('tx-id').value, 16);
+            const pos = parseFloat(document.getElementById('tx-pos').value);
+            const vel = parseFloat(document.getElementById('tx-vel').value);
+            const status = document.getElementById('tx-status');
+            if (isNaN(id) || id < 0 || id > 0x7FF) {
+                status.textContent = 'ID inválido (0-7FF)';
+                return;
+            }
+            status.textContent = 'Enviando...';
+            try {
+                const r = await fetch('/api/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id, pos, vel})
+                });
+                const result = await r.json();
+                status.textContent = result.ok ? 'Enviado' : 'Error: ' + (result.error || 'desconocido');
+            } catch (e) {
+                status.textContent = 'Error de red';
+            }
         }
 
         async function initControl() {
