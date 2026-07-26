@@ -159,6 +159,15 @@
             </div>
         </div>
         <hr style="border-color:#3c3c3c; margin: 16px 0;">
+        <div style="display:flex; gap:24px; align-items:center; margin-bottom:8px;">
+            <span class="saved-title">FK Resultado</span>
+        </div>
+        <div style="display:flex; gap:24px; font-size:14px;">
+            <span style="color:#aaa;">X: <span id="fk-x" style="color:#fff; font-size:16px;">0.00</span></span>
+            <span style="color:#aaa;">Y: <span id="fk-y" style="color:#fff; font-size:16px;">0.00</span></span>
+            <span style="color:#aaa;">Z: <span id="fk-z" style="color:#fff; font-size:16px;">0.00</span></span>
+        </div>
+        <hr style="border-color:#3c3c3c; margin: 16px 0;">
         <div class="pad">
             <div class="empty"></div>
             <button onclick="sendDir('UP')">↑</button>
@@ -351,6 +360,16 @@
             }
         }
 
+        async function fetchFK() {
+            try {
+                const r = await fetch('/api/fk');
+                const data = await r.json();
+                document.getElementById('fk-x').textContent = data.x.toFixed(2);
+                document.getElementById('fk-y').textContent = data.y.toFixed(2);
+                document.getElementById('fk-z').textContent = data.z.toFixed(2);
+            } catch (e) {}
+        }
+
         async function initControl() {
             const r = await fetch('/api/config');
             const cfg = await r.json();
@@ -368,7 +387,9 @@
             }
             fetchJoints();
             fetchSaved();
+            fetchFK();
             setInterval(fetchJoints, 500);
+            setInterval(fetchFK, 500);
         }
 
         initControl();

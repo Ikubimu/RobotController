@@ -9,6 +9,7 @@
 #include "web.h"
 #include "joints_storage.h"
 #include "Arm.hpp"
+#include "CinematicsUtils.hpp"
 
 static const char *TAG = "web";
 extern Arm arm;
@@ -363,6 +364,19 @@ static esp_err_t points_delete_handler(httpd_req_t *req)
     } else {
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"indice invalido\"}");
     }
+    return ESP_OK;
+}
+
+static esp_err_t fk_get_handler(httpd_req_t *req)
+{
+    auto angles = arm.getPos();
+    Matrix T = Cinematics::computeFromJoints(angles);
+
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f}",
+        T.data[3], T.data[7], T.data[11]);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
     return ESP_OK;
 }
 
