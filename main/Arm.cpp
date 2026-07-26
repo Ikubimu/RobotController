@@ -68,9 +68,22 @@ void Arm::MoveJ(uint8_t pointIndex, float vel, float acc)
         ESP_LOGE(TAG, "MoveJ: punto %d no valido", pointIndex);
         return;
     }
-    ESP_LOGI(TAG, "MoveJ punto %d, %zu joints", pointIndex, joints.size());
+
+    std::vector<float> currentAngles = getPos();
+
+    float maxTime = 0.0f;
     for (uint8_t i = 0; i < joints.size(); i++) {
-        RotateJoint(i, p->angles[i], vel);
+        float dist = fabsf(p->angles[i] - currentAngles[i]);
+        float t = (vel > 1e-6f) ? dist / vel : 0.0f;
+        if (t > maxTime) maxTime = t;
+    }
+
+    ESP_LOGI(TAG, "MoveJ punto %d, maxTime: %.3f", pointIndex, maxTime);
+
+    for (uint8_t i = 0; i < joints.size(); i++) {
+        float dist = fabsf(p->angles[i] - currentAngles[i]);
+        float jointVel = (maxTime > 1e-6f) ? dist / maxTime : 0.0f;
+        joints[i].setPos(jointVel, p->angles[i]);
     }
 }
 
