@@ -98,6 +98,10 @@ void setJointIndices(const std::vector<uint8_t> &indices) {
     }
 }
 
+uint8_t getJointCount() {
+    return s_joint_count;
+}
+
 Matrix computeFromJoints(const std::vector<float> &joint_angles) {
     std::vector<DH_values> temp(s_dh_params, s_dh_params + s_dh_count);
 
@@ -135,7 +139,7 @@ std::vector<float> computeJointVelocities(const Matrix &J, float v_lin, const fl
     float vz = err_pos[2] * k_lin;
 
     float rot_norm = sqrtf(err_rot[0] * err_rot[0] + err_rot[1] * err_rot[1] + err_rot[2] * err_rot[2]);
-    float k_rot = (rot_norm > 1e-6f) ? v_lin / rot_norm : 0.0f;
+    float k_rot = k_lin;  // same as Python: V_LINEAL / pos_norm
 
     float wx = err_rot[0] * k_rot;
     float wy = err_rot[1] * k_rot;
@@ -193,6 +197,46 @@ Matrix computeJacobian(const std::vector<Matrix> &frames) {
     }
 
     return J;
+}
+
+void orientationError(const Matrix &T_current, const Matrix &T_target, float err_rot[3]) {
+    float Rc[9] = {
+        T_current.data[0], T_current.data[1], T_current.data[2],
+        T_current.data[4], T_current.data[5], T_current.data[6],
+        T_current.data[8], T_current.data[9], T_current.data[10]
+    };
+    float Rt[9] = {
+        T_target.data[0], T_target.data[1], T_target.data[2],
+        T_target.data[4], T_target.data[5], T_target.data[6],
+        T_target.data[8], T_target.data[9], T_target.data[10]
+    };
+
+    float Re[9];
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            Re[i*3+j] = Rt[i*3+0]*Rc[j*3+0] + Rt[i*3+1]*Rc[j*3+1] + Rt[i*3+2]*Rc[j*3+2];
+
+    float trace = Re[0] + Re[4] + Re[8];
+    float cos_angle = (trace - 1.0f) / 2.0f;
+    cos_angle = fmaxf(-1.0f, fminf(1.0f, cos_angle));
+    float angle = acosf(cos_angle);
+
+    if (angle < 1e-8f) {
+        err_rot[0] = 0; err_rot[1] = 0; err_rot[2] = 0;
+        return;
+    }
+
+    float w[3] = { Re[7] - Re[5], Re[2] - Re[6], Re[3] - Re[1] };
+    float w_norm = sqrtf(w[0]*w[0] + w[1]*w[1] + w[2]*w[2]);
+    if (w_norm < 1e-10f) {
+        err_rot[0] = 0; err_rot[1] = 0; err_rot[2] = 0;
+        return;
+    }
+
+    float a = angle / w_norm;
+    err_rot[0] = w[0] * a;
+    err_rot[1] = w[1] * a;
+    err_rot[2] = w[2] * a;
 }
 
 }

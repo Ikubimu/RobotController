@@ -2,10 +2,14 @@
 #define ARM_HPP
 
 #include <vector>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "Joint.hpp"
+#include "joints_storage.h"
+#include "matrix_math.hpp"
 
 #define ARM_DEFAULT_VEL 1.0f
-#define ARM_DEFAULT_ACC 0.0f
+#define ARM_DEFAULT_ACC 0.5f
 
 class Arm {
 public:
@@ -18,7 +22,17 @@ public:
     std::vector<float> getPos() const;
 
 private:
+    void controlTask();
+    static void controlTaskEntry(void *arg);
+
     std::vector<Joint> joints;
+    TaskHandle_t taskHandle = nullptr;
+
+    Matrix targetPose;
+    std::vector<float> targetAngles;
+    float moveVel = 0.0f;
+    float moveThreshold = ARM_DEFAULT_ACC;
+    volatile bool moveActive = false;
 };
 
 #endif

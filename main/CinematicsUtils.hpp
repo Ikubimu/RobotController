@@ -25,10 +25,12 @@ void clearDH();
 uint8_t getDHCount();
 const DH_values& getDH(uint8_t index);
 void setJointIndices(const std::vector<uint8_t> &indices);
+uint8_t getJointCount();
 Matrix computeFromJoints(const std::vector<float> &joint_angles);
 Matrix computeFromJoints(const std::vector<float> &joint_angles, std::vector<Matrix> &frames);
 Matrix computeJacobian(const std::vector<Matrix> &frames);
 std::vector<float> computeJointVelocities(const Matrix &J, float v_lin, const float err_pos[3], const float err_rot[3]);
+void orientationError(const Matrix &T_current, const Matrix &T_target, float err_rot[3]);
 
 }
 

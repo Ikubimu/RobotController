@@ -1,5 +1,6 @@
-#include <string.h>
+#include <cstring>
 #include "joints_storage.h"
+#include "CinematicsUtils.hpp"
 
 static joint_point_t s_points[MAX_POINTS];
 static int s_count = 0;
@@ -11,7 +12,7 @@ int joints_get_count(void)
 
 const joint_point_t *joints_get(int index)
 {
-    if (index < 0 || index >= s_count) return NULL;
+    if (index < 0 || index >= s_count) return nullptr;
     return &s_points[index];
 }
 
@@ -19,6 +20,10 @@ int joints_add(const float *angles)
 {
     if (s_count >= MAX_POINTS) return -1;
     memcpy(s_points[s_count].angles, angles, sizeof(float) * NUM_JOINTS);
+
+    std::vector<float> v(angles, angles + Cinematics::getJointCount());
+    s_points[s_count].pose = Cinematics::computeFromJoints(v);
+
     return s_count++;
 }
 

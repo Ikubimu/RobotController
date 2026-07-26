@@ -1,8 +1,54 @@
 #include "Arm.hpp"
+#include "CinematicsUtils.hpp"
 #include "joints_storage.h"
 #include "esp_log.h"
+#include <cmath>
+#include <cstring>
 
 static const char *TAG = "Arm";
+
+void Arm::controlTaskEntry(void *arg) {
+    static_cast<Arm*>(arg)->controlTask();
+}
+
+void Arm::controlTask() {
+    while (1) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        while (moveActive) {
+            std::vector<float> currentAngles = getPos();
+
+            std::vector<Matrix> frames;
+            Matrix T_current = Cinematics::computeFromJoints(currentAngles, frames);
+
+            float err_pos[3] = {
+                targetPose.data[3] - T_current.data[3],
+                targetPose.data[7] - T_current.data[7],
+                targetPose.data[11] - T_current.data[11]
+            };
+
+            float err_rot[3];
+            Cinematics::orientationError(T_current, targetPose, err_rot);
+
+            float pos_norm = sqrtf(err_pos[0] * err_pos[0] + err_pos[1] * err_pos[1] + err_pos[2] * err_pos[2]);
+            float rot_norm = sqrtf(err_rot[0] * err_rot[0] + err_rot[1] * err_rot[1] + err_rot[2] * err_rot[2]);
+            if (pos_norm < moveThreshold && rot_norm < 0.02f) {
+                ESP_LOGI(TAG, "MoveL: objetivo alcanzado");
+                moveActive = false;
+                break;
+            }
+
+            Matrix J = Cinematics::computeJacobian(frames);
+            std::vector<float> q_dot = Cinematics::computeJointVelocities(J, moveVel, err_pos, err_rot);
+
+            for (uint8_t i = 0; i < joints.size() && i < q_dot.size(); i++) {
+                joints[i].setPos(q_dot[i], targetAngles[i]);
+            }
+
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }
+}
 
 Arm::Arm(uint8_t numJoints)
 {
@@ -10,6 +56,8 @@ Arm::Arm(uint8_t numJoints)
     for (uint8_t i = 1; i <= numJoints; i++) {
         joints.emplace_back(i);
     }
+    targetAngles.resize(numJoints, 0.0f);
+    xTaskCreate(controlTaskEntry, "ArmCtrl", 4096, this, 1, &taskHandle);
 }
 
 void Arm::MoveJ(uint8_t pointIndex, float vel, float acc)
@@ -28,14 +76,22 @@ void Arm::MoveJ(uint8_t pointIndex, float vel, float acc)
 
 void Arm::MoveL(uint8_t pointIndex, float vel, float acc)
 {
-    (void)acc;
     const joint_point_t *p = joints_get(pointIndex);
     if (!p) {
         ESP_LOGE(TAG, "MoveL: punto %d no valido", pointIndex);
         return;
     }
     ESP_LOGI(TAG, "MoveL punto %d, %zu joints", pointIndex, joints.size());
-    // TO DO: Implement linear interpolation for MoveL
+
+    targetPose = p->pose;
+
+    for (uint8_t i = 0; i < joints.size(); i++) {
+        targetAngles[i] = p->angles[i];
+    }
+    moveVel = vel;
+    moveThreshold = acc;
+    moveActive = true;
+    xTaskNotifyGive(taskHandle);
 }
 
 void Arm::updateJoint(uint8_t id, float vel, float pos)
@@ -59,3 +115,5 @@ std::vector<float> Arm::getPos() const
     }
     return positions;
 }
+
+
