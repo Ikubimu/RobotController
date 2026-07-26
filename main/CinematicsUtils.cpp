@@ -138,8 +138,7 @@ std::vector<float> computeJointVelocities(const Matrix &J, float v_lin, const fl
     float vy = err_pos[1] * k_lin;
     float vz = err_pos[2] * k_lin;
 
-    float rot_norm = sqrtf(err_rot[0] * err_rot[0] + err_rot[1] * err_rot[1] + err_rot[2] * err_rot[2]);
-    float k_rot = k_lin;  // same as Python: V_LINEAL / pos_norm
+    float k_rot = k_lin;
 
     float wx = err_rot[0] * k_rot;
     float wy = err_rot[1] * k_rot;
@@ -176,7 +175,7 @@ Matrix computeJacobian(const std::vector<Matrix> &frames) {
             o[0] = 0; o[1] = 0; o[2] = 0;
         } else {
             const Matrix &prev = frames[dh_idx - 1];
-            z[0] = prev.data[8]; z[1] = prev.data[9]; z[2] = prev.data[10];
+            z[0] = prev.data[2]; z[1] = prev.data[6]; z[2] = prev.data[10];
             o[0] = prev.data[3]; o[1] = prev.data[7]; o[2] = prev.data[11];
         }
 
