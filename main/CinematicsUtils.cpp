@@ -108,7 +108,7 @@ Matrix computeFromJoints(const std::vector<float> &joint_angles) {
     for (uint8_t i = 0; i < s_joint_count; i++) {
         uint8_t dh_idx = s_joint_dh_indices[i];
         if (dh_idx < temp.size() && i < joint_angles.size()) {
-            temp[dh_idx].theta += joint_angles[i];
+            temp[dh_idx].theta += joint_angles[i] * (float)M_PI / 180.0f;
         }
     }
 
@@ -121,7 +121,7 @@ Matrix computeFromJoints(const std::vector<float> &joint_angles, std::vector<Mat
     for (uint8_t i = 0; i < s_joint_count; i++) {
         uint8_t dh_idx = s_joint_dh_indices[i];
         if (dh_idx < temp.size() && i < joint_angles.size()) {
-            temp[dh_idx].theta += joint_angles[i];
+            temp[dh_idx].theta += joint_angles[i] * (float)M_PI / 180.0f;
         }
     }
 
@@ -154,7 +154,7 @@ std::vector<float> computeJointVelocities(const Matrix &J, float v_lin, const fl
 
     std::vector<float> result(n);
     for (uint8_t i = 0; i < n; i++) {
-        result[i] = q_dot.data[i];
+        result[i] = q_dot.data[i] * 180.0f / (float)M_PI;
     }
 
     return result;
