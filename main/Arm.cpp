@@ -81,8 +81,8 @@ void Arm::MoveJ(uint8_t pointIndex, float vel, float acc)
     ESP_LOGI(TAG, "MoveJ punto %d, maxTime: %.3f", pointIndex, maxTime);
 
     for (uint8_t i = 0; i < joints.size(); i++) {
-        float dist = fabsf(p->angles[i] - currentAngles[i]);
-        float jointVel = (maxTime > 1e-6f) ? dist / maxTime : 0.0f;
+        float diff = p->angles[i] - currentAngles[i];
+        float jointVel = (maxTime > 1e-6f) ? diff / maxTime : 0.0f;
         joints[i].setPos(jointVel, p->angles[i]);
     }
 }
