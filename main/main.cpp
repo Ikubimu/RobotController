@@ -40,14 +40,14 @@ static void sync_time(void)
 
 extern "C" void app_main(void)
 {
-    wifi_init_sta();
+    wifi_init_ap();
 
     xEventGroupWaitBits(wifi_get_event_group(), WIFI_CONNECTED_BIT,
                         pdFALSE, pdTRUE, portMAX_DELAY);
 
     esp_netif_ip_info_t ip;
-    esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("STA_DEF"), &ip);
-    ESP_LOGI(TAG, "WiFi IP: " IPSTR, IP2STR(&ip.ip));
+    esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("AP_DEF"), &ip);
+    ESP_LOGI(TAG, "WiFi AP IP: " IPSTR, IP2STR(&ip.ip));
 
     sync_time();
 
