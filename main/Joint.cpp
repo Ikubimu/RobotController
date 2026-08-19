@@ -7,7 +7,7 @@ Joint::Joint(uint8_t id) : id(id), pos(0.0f), vel(0.0f), calibrated(false) {}
 
 void Joint::calibrate(float ratio, float pos)
 {
-    uint16_t canId = (static_cast<uint16_t>(id) << 8) | CALIBRATION_CAN_ID;
+    uint16_t canId = (static_cast<uint16_t>(id) << 8) | CMD_CALIBRATION;
     uint8_t data[8];
     std::memcpy(&data[0], &ratio, sizeof(float));
     std::memcpy(&data[4], &pos, sizeof(float));
@@ -20,7 +20,7 @@ void Joint::calibrate(float ratio, float pos)
 
 void Joint::setPos(float vel, float pos)
 {
-    uint16_t canId = (static_cast<uint16_t>(id) << 8) | SET_POSITION_CAN_ID;
+    uint16_t canId = (static_cast<uint16_t>(id) << 8) | CMD_MOVE_TARGET;
     uint8_t data[8];
     std::memcpy(&data[0], &pos, sizeof(float));
     std::memcpy(&data[4], &vel, sizeof(float));

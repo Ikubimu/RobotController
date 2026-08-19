@@ -57,7 +57,7 @@ extern "C" void app_main(void)
 
     CommunicationHandler::start(0);
 
-    CommunicationHandler::registerJointService(JOINT_STATUS_CAN_ID, [](const CAN_Message *msg) {
+    CommunicationHandler::registerJointService(CMD_STATUS, [](const CAN_Message *msg) {
         uint8_t jointId = (msg->id >> 8) & 0xFF;
         float pos, vel;
         memcpy(&pos, &msg->data[0], sizeof(float));

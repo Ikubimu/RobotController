@@ -11,9 +11,14 @@
 
 
 // CAN command IDs
-#define CALIBRATION_CAN_ID      0x01
-#define JOINT_STATUS_CAN_ID     0x02
-#define SET_POSITION_CAN_ID     0x03
+#define CMD_ERROR        0x01
+#define CMD_START        0x02
+#define CMD_CALIBRATION  0x03
+#define CMD_ANNOUNCE     0x04
+#define CMD_MOVE_TARGET  0x05
+#define CMD_PAUSE        0x06
+#define CMD_RESUME       0x07
+#define CMD_STATUS       0x08
 
 typedef struct {
     uint32_t id;
