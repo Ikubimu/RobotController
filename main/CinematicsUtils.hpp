@@ -3,19 +3,12 @@
 
 #include <cstdint>
 #include <vector>
-#include "joints_storage.h"
+#include "Config.hpp"
 #include "matrix_math.hpp"
 
 #define MAX_DH_PARAMS 10
 #define MAX_JOINTS 8
 #define MAX_FRAMES 10
-
-struct DH_values {
-    float theta;
-    float alpha;
-    float d;
-    float a;
-};
 
 namespace Cinematics {
 
@@ -25,6 +18,7 @@ void clearDH();
 uint8_t getDHCount();
 const DH_values& getDH(uint8_t index);
 void setJointIndices(const std::vector<uint8_t> &indices);
+bool applyConfig();
 uint8_t getJointCount();
 Matrix computeFromJoints(const std::vector<float> &joint_angles);
 Matrix computeFromJoints(const std::vector<float> &joint_angles, std::vector<Matrix> &frames);

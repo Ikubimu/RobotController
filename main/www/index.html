@@ -92,6 +92,9 @@
         }
         #tx-btn:hover { background: #1177bb; }
         #tx-status { margin-top: 10px; font-size: 13px; color: #888; }
+        #cfg-status { margin-top: 12px; font-size: 13px; font-family: monospace; white-space: pre-wrap; }
+        #cfg-status.ok { color: #2d8c2d; }
+        #cfg-status.err { color: #e06c75; }
     </style>
 </head>
 <body>
@@ -100,10 +103,21 @@
         <button class="active" onclick="switchTab('can')">Monitor CAN</button>
         <button onclick="switchTab('tx')">TX Manual</button>
         <button onclick="switchTab('ctrl')">Control</button>
+        <button onclick="switchTab('cfg')">Config</button>
     </div>
     <div id="tab-can" class="tab-content">
         <textarea id="can-output" readonly></textarea>
         <div class="stats" id="stats">Esperando mensajes...</div>
+    </div>
+
+    <div id="tab-cfg" class="tab-content" style="display:none">
+        <div class="field">
+            <label>Archivo de configuración (JSON)</label>
+            <input type="file" id="cfg-file" accept=".json,application/json">
+        </div>
+        <button id="tx-btn" onclick="validateConfig()">Set config</button>
+        <button id="tx-btn" onclick="applyConfig()" style="background:#2d8c2d;">Calibration</button>
+        <div id="cfg-status"></div>
     </div>
 
     <div id="tab-tx" class="tab-content" style="display:none">
@@ -368,6 +382,51 @@
                 document.getElementById('fk-y').textContent = data.y.toFixed(2);
                 document.getElementById('fk-z').textContent = data.z.toFixed(2);
             } catch (e) {}
+        }
+
+        async function validateConfig() {
+            const fileInput = document.getElementById('cfg-file');
+            const status = document.getElementById('cfg-status');
+            if (!fileInput.files || !fileInput.files[0]) {
+                status.className = 'err';
+                status.textContent = 'Selecciona un archivo JSON';
+                return;
+            }
+            const file = fileInput.files[0];
+            status.className = '';
+            status.textContent = 'Enviando...';
+
+            try {
+                const r = await fetch('/api/config/validate', {
+                    method: 'POST',
+                    body: file
+                });
+                const result = await r.json();
+                status.className = result.ok ? 'ok' : 'err';
+                status.textContent = result.ok
+                    ? JSON.stringify(result, null, 2)
+                    : 'Error: ' + result.error;
+            } catch (e) {
+                status.className = 'err';
+                status.textContent = 'Error de red o respuesta no valida';
+            }
+        }
+
+        async function applyConfig() {
+            const status = document.getElementById('cfg-status');
+            status.className = '';
+            status.textContent = 'Aplicando...';
+            try {
+                const r = await fetch('/api/config/apply', {method: 'POST'});
+                const result = await r.json();
+                status.className = result.ok ? 'ok' : 'err';
+                status.textContent = result.ok
+                    ? 'Configuracion aplicada a Cinematics'
+                    : 'Error: ' + result.error;
+            } catch (e) {
+                status.className = 'err';
+                status.textContent = 'Error de red';
+            }
         }
 
         async function initControl() {

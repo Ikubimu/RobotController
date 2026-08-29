@@ -102,6 +102,22 @@ uint8_t getJointCount() {
     return s_joint_count;
 }
 
+bool applyConfig() {
+    clearDH();
+
+    for (size_t i = 0; i < Config::dh.size(); i++) {
+        addDH(Config::dh[i]);
+    }
+
+    std::vector<uint8_t> jointIndices;
+    for (size_t i = 0; i < Config::rot.size(); i++) {
+        jointIndices.push_back((uint8_t)Config::rot[i]);
+    }
+    setJointIndices(jointIndices);
+
+    return s_dh_count > 0;
+}
+
 Matrix computeFromJoints(const std::vector<float> &joint_angles) {
     std::vector<DH_values> temp(s_dh_params, s_dh_params + s_dh_count);
 
