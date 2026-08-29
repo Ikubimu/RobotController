@@ -10,10 +10,10 @@ void Joint::calibrate(float pos, float ratio, float minRange, float maxRange)
 {
     uint16_t canId = (static_cast<uint16_t>(id) << 8) | CMD_CALIBRATION;
     uint8_t data[8];
-    int16_t p = (int16_t)pos;
-    int16_t r = (int16_t)ratio;
-    int16_t mn = (int16_t)minRange;
-    int16_t mx = (int16_t)maxRange;
+    int16_t p = (int16_t)(pos * 100.0f);
+    int16_t r = (int16_t)(ratio * 100.0f);
+    int16_t mn = (int16_t)(minRange * 100.0f);
+    int16_t mx = (int16_t)(maxRange * 100.0f);
     std::memcpy(&data[0], &p, sizeof(int16_t));
     std::memcpy(&data[2], &r, sizeof(int16_t));
     std::memcpy(&data[4], &mn, sizeof(int16_t));
