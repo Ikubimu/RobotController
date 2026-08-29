@@ -1,21 +1,39 @@
 #include "Joint.hpp"
 #include "communication_handler.hpp"
 #include <cstring>
+#include "esp_log.h"
 
 
 Joint::Joint(uint8_t id) : id(id), pos(0.0f), vel(0.0f), calibrated(false) {}
 
-void Joint::calibrate(float ratio, float pos)
+void Joint::calibrate(float pos, float ratio, float minRange, float maxRange)
 {
     uint16_t canId = (static_cast<uint16_t>(id) << 8) | CMD_CALIBRATION;
     uint8_t data[8];
-    std::memcpy(&data[0], &ratio, sizeof(float));
-    std::memcpy(&data[4], &pos, sizeof(float));
+    int16_t p = (int16_t)pos;
+    int16_t r = (int16_t)ratio;
+    int16_t mn = (int16_t)minRange;
+    int16_t mx = (int16_t)maxRange;
+    std::memcpy(&data[0], &p, sizeof(int16_t));
+    std::memcpy(&data[2], &r, sizeof(int16_t));
+    std::memcpy(&data[4], &mn, sizeof(int16_t));
+    std::memcpy(&data[6], &mx, sizeof(int16_t));
+
+    ESP_LOGI("Joint", "Joint %d calibrate: pos=%.2f ratio=%.2f range=[%.2f, %.2f]", id, pos, ratio, minRange, maxRange);
 
     CommunicationHandler::sendMessage(canId, data, 8);
 
     this->pos = pos;
-    this->calibrated = true;
+}
+
+void Joint::setCalibrated(bool calibrated)
+{
+    this->calibrated = calibrated;
+}
+
+bool Joint::isCalibrated() const
+{
+    return calibrated;
 }
 
 void Joint::setPos(float vel, float pos)

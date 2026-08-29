@@ -113,6 +113,20 @@ void Arm::updateJoint(uint8_t id, float vel, float pos)
     joints[id - 1].update(vel, pos);
 }
 
+void Arm::setJointCalibrated(uint8_t id, bool calibrated)
+{
+    if (id > joints.size() || id < 1) return;
+    joints[id - 1].setCalibrated(calibrated);
+}
+
+void Arm::calibrate(const std::vector<Calibration> &calibration)
+{
+    for (size_t i = 0; i < calibration.size() && i < joints.size(); i++) {
+        const Calibration &c = calibration[i];
+        joints[i].calibrate(c.pos, c.ratio, c.ranges[0], c.ranges[1]);
+    }
+}
+
 void Arm::RotateJoint(uint8_t id, float pos, float vel)
 {
     if (id >= joints.size()) return;

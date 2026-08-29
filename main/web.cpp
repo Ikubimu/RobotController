@@ -577,6 +577,7 @@ static esp_err_t config_apply_post_handler(httpd_req_t *req)
     if (ok) {
         ESP_LOGI(TAG, "Config aplicada a Cinematics: %d DH, %d joints",
                  Cinematics::getDHCount(), Cinematics::getJointCount());
+        arm.calibrate(Config::calibration);
         httpd_resp_sendstr(req, "{\"ok\":true,\"message\":\"config aplicada\"}");
     } else {
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"no se pudo aplicar\"}");
