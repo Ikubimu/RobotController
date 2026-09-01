@@ -168,8 +168,19 @@ std::vector<float> computeJointVelocities(const Matrix &J, float v_lin, const fl
     Matrix q_dot = MatMath::multiply(J_pinv, tcp_vel);
 
     std::vector<float> result(n);
+    const float MAX_QDOT = 80.0f;  // deg/s limite por joint
+
+    float maxScale = 1.0f;
     for (uint8_t i = 0; i < n; i++) {
-        result[i] = q_dot.data[i] * 180.0f / (float)M_PI;
+        float q = q_dot.data[i] * 180.0f / (float)M_PI;
+        float a = fabsf(q);
+        if (a > MAX_QDOT && a > maxScale * MAX_QDOT) {
+            maxScale = MAX_QDOT / a;
+        }
+    }
+
+    for (uint8_t i = 0; i < n; i++) {
+        result[i] = q_dot.data[i] * 180.0f / (float)M_PI * maxScale;
     }
 
     return result;
