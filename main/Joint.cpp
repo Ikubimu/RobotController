@@ -10,14 +10,14 @@ void Joint::calibrate(float pos, float ratio, float minRange, float maxRange)
 {
     uint16_t canId = (static_cast<uint16_t>(id) << 8) | CMD_CALIBRATION;
     uint8_t data[8];
-    int16_t p = (int16_t)(pos * 100.0f);
+    uint16_t p = (uint16_t)(pos * 100.0f);
     int16_t r = (int16_t)(ratio * 100.0f);
-    int16_t mn = (int16_t)(minRange * 100.0f);
-    int16_t mx = (int16_t)(maxRange * 100.0f);
-    std::memcpy(&data[0], &p, sizeof(int16_t));
+    uint16_t mn = (uint16_t)(minRange * 100.0f);
+    uint16_t mx = (uint16_t)(maxRange * 100.0f);
+    std::memcpy(&data[0], &p, sizeof(uint16_t));
     std::memcpy(&data[2], &r, sizeof(int16_t));
-    std::memcpy(&data[4], &mn, sizeof(int16_t));
-    std::memcpy(&data[6], &mx, sizeof(int16_t));
+    std::memcpy(&data[4], &mn, sizeof(uint16_t));
+    std::memcpy(&data[6], &mx, sizeof(uint16_t));
 
     ESP_LOGI("Joint", "Joint %d calibrate: pos=%.2f ratio=%.2f range=[%.2f, %.2f]", id, pos, ratio, minRange, maxRange);
 
