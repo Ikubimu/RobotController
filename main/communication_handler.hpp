@@ -19,6 +19,18 @@
 #define CMD_PAUSE        0x06
 #define CMD_RESUME       0x07
 #define CMD_STATUS       0x08
+#define CMD_WATCHDOG     0x09
+
+// Error codes definitions
+#define NO_ERROR                        0x00
+#define ENCODER_ERROR                   0x01
+#define COLISION_ERROR                  0x02
+#define OUT_OF_RANGE_ERROR              0x03
+#define MOVE_FAILURE_ERROR              0x04
+#define CALIBRATION_FAILURE_ERROR       0x05
+#define COMMUNICATION_LOST_ERROR        0x06
+#define USER_ERROR                      0x07
+#define UNKNOWN_ERROR                   0xAA
 
 typedef struct {
     uint32_t id;
@@ -36,6 +48,8 @@ public:
     static bool registerJointService(uint8_t cmdId,
                                      std::function<void(const CAN_Message*)> callback);
     static bool sendMessage(uint32_t id, const uint8_t *data, uint8_t dlc);
+    static bool sendError(uint8_t errorCode);
+    static bool sendWatchdog();
 
 private:
     struct ServiceEntry {

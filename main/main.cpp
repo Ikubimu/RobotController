@@ -38,6 +38,14 @@ static void sync_time(void)
     }
 }
 
+static void watchdog_task(void *arg)
+{
+    while (1) {
+        CommunicationHandler::sendWatchdog();
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
+
 extern "C" void app_main(void)
 {
     wifi_init_ap();
@@ -69,6 +77,8 @@ extern "C" void app_main(void)
         uint8_t jointId = (msg->id >> 8) & 0xFF;
         arm.setJointCalibrated(jointId, true);
     });
+
+    xTaskCreate(watchdog_task, "watchdog", 2048, NULL, 1, NULL);
 
     while (1)
     {

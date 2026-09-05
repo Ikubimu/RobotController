@@ -73,6 +73,17 @@ bool CommunicationHandler::sendMessage(uint32_t id, const uint8_t *data, uint8_t
     return twai_transmit(&msg, pdMS_TO_TICKS(100)) == ESP_OK;
 }
 
+bool CommunicationHandler::sendError(uint8_t errorCode)
+{
+    uint8_t data[8] = {errorCode, 0, 0, 0, 0, 0, 0, 0};
+    return sendMessage(CMD_ERROR, data, 1);
+}
+
+bool CommunicationHandler::sendWatchdog()
+{
+    return sendMessage(CMD_WATCHDOG, nullptr, 0);
+}
+
 void CommunicationHandler::taskFunction(void *pvParameters)
 {
     (void)pvParameters;

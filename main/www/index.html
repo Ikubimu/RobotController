@@ -41,6 +41,15 @@
             font-family: monospace;
         }
         #joints-container { margin-top: 8px; }
+        .mushroom-btn {
+            width: 120px; height: 120px; border-radius: 50%;
+            background: #e02424; color: #fff; border: 4px solid #8f1b1b;
+            font-family: monospace; font-size: 16px; font-weight: bold;
+            cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+        .mushroom-btn:hover { background: #ff3b3b; }
+        .mushroom-btn:active { background: #b01818; }
+        .mushroom-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 16px 0; }
         .pad { display: grid; grid-template: 60px 60px 60px / 60px 60px 60px; gap: 4px; justify-content: center; margin: 24px auto; }
         .pad button { font-size: 24px; border: none; border-radius: 6px; cursor: pointer; background: #2d2d2d; color: #fff; }
         .pad button:active { background: #0e639c; }
@@ -148,8 +157,16 @@
             <input type="number" id="cal-pos" value="0" step="0.1" placeholder="0.0">
         </div>
         <div class="field">
-            <label>Ratio (uint16)</label>
-            <input type="number" id="cal-ratio" value="0" min="0" max="65535" placeholder="0-65535">
+            <label>Ratio</label>
+            <input type="number" id="cal-ratio" value="0" step="0.01" placeholder="0.0">
+        </div>
+        <div class="field">
+            <label>Mínimo</label>
+            <input type="number" id="cal-min" value="0" step="0.01" placeholder="0.0">
+        </div>
+        <div class="field">
+            <label>Máximo</label>
+            <input type="number" id="cal-max" value="0" step="0.01" placeholder="0.0">
         </div>
         <button id="tx-btn" onclick="sendCal()" style="background:#2d8c2d;">Enviar Calibración</button>
         <div id="cal-status" style="margin-top: 10px; font-size: 13px; color: #888;"></div>
@@ -192,6 +209,10 @@
             <div class="empty"></div>
             <button onclick="sendDir('DOWN')">↓</button>
             <div class="empty"></div>
+        </div>
+        <div class="mushroom-wrap">
+            <button class="mushroom-btn" onclick="sendError()">STOP</button>
+            <span style="color:#aaa; font-size:12px;">Parada de emergencia</span>
         </div>
     </div>
 
@@ -256,6 +277,22 @@
                 });
             } catch (e) {}
             fetchJoints();
+        }
+
+        async function sendDir(dir) {
+            try {
+                await fetch('/api/control', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({dir})
+                });
+            } catch (e) {}
+        }
+
+        async function sendError() {
+            try {
+                await fetch('/api/error', {method: 'POST'});
+            } catch (e) {}
         }
 
         async function fetchSaved() {
@@ -327,14 +364,16 @@
         async function sendCal() {
             const id = parseInt(document.getElementById('cal-id').value, 16);
             const pos = parseFloat(document.getElementById('cal-pos').value);
-            const ratio = parseInt(document.getElementById('cal-ratio').value);
+            const ratio = parseFloat(document.getElementById('cal-ratio').value);
+            const min = parseFloat(document.getElementById('cal-min').value);
+            const max = parseFloat(document.getElementById('cal-max').value);
             const status = document.getElementById('cal-status');
             if (isNaN(id) || id < 0 || id > 0x7FF) {
                 status.textContent = 'ID inválido (0-7FF)';
                 return;
             }
-            if (isNaN(ratio) || ratio < 0 || ratio > 65535) {
-                status.textContent = 'Ratio inválido (0-65535)';
+            if (isNaN(pos) || isNaN(ratio) || isNaN(min) || isNaN(max)) {
+                status.textContent = 'Campos inválidos';
                 return;
             }
             status.textContent = 'Enviando...';
@@ -342,7 +381,7 @@
                 const r = await fetch('/api/send_cal', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({id, pos, ratio})
+                    body: JSON.stringify({id, pos, ratio, min, max})
                 });
                 const result = await r.json();
                 status.textContent = result.ok ? 'Enviado' : 'Error: ' + (result.error || 'desconocido');

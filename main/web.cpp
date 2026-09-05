@@ -182,6 +182,20 @@ static esp_err_t control_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t error_post_handler(httpd_req_t *req)
+{
+    bool ok = CommunicationHandler::sendError(USER_ERROR);
+
+    httpd_resp_set_type(req, "application/json");
+    if (ok) {
+        ESP_LOGI(TAG, "Error USER_ERROR enviado por CAN");
+        httpd_resp_sendstr(req, "{\"ok\":true}");
+    } else {
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"tx fallo\"}");
+    }
+    return ESP_OK;
+}
+
 static esp_err_t send_cal_post_handler(httpd_req_t *req)
 {
     char buf[256];
@@ -200,8 +214,10 @@ static esp_err_t send_cal_post_handler(httpd_req_t *req)
     cJSON *id_item = cJSON_GetObjectItem(json, "id");
     cJSON *pos_item = cJSON_GetObjectItem(json, "pos");
     cJSON *ratio_item = cJSON_GetObjectItem(json, "ratio");
+    cJSON *min_item = cJSON_GetObjectItem(json, "min");
+    cJSON *max_item = cJSON_GetObjectItem(json, "max");
 
-    if (!id_item || !pos_item || !ratio_item) {
+    if (!id_item || !pos_item || !ratio_item || !min_item || !max_item) {
         cJSON_Delete(json);
         httpd_resp_set_type(req, "application/json");
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"faltan campos\"}");
@@ -209,20 +225,26 @@ static esp_err_t send_cal_post_handler(httpd_req_t *req)
     }
 
     uint32_t can_id = (uint32_t)id_item->valueint;
-    float position = (float)pos_item->valuedouble;
-    uint16_t ratio = (uint16_t)ratio_item->valueint;
+    uint16_t p = (uint16_t)(pos_item->valuedouble * 100.0);
+    int16_t r = (int16_t)(ratio_item->valuedouble * 100.0);
+    uint16_t mn = (uint16_t)(min_item->valuedouble * 100.0);
+    uint16_t mx = (uint16_t)(max_item->valuedouble * 100.0);
 
     cJSON_Delete(json);
 
     uint8_t data[8] = {0};
-    memcpy(&data[0], &position, 4);
-    memcpy(&data[4], &ratio, 2);
+    memcpy(&data[0], &p, 2);
+    memcpy(&data[2], &r, 2);
+    memcpy(&data[4], &mn, 2);
+    memcpy(&data[6], &mx, 2);
 
-    bool ok = CommunicationHandler::sendMessage(can_id, data, 6);
+    bool ok = CommunicationHandler::sendMessage(can_id, data, 8);
 
     httpd_resp_set_type(req, "application/json");
     if (ok) {
-        ESP_LOGI(TAG, "CAL 0x%lX pos=%.2f ratio=%u", can_id, position, ratio);
+        ESP_LOGI(TAG, "CAL 0x%lX pos=%.2f ratio=%.2f range=[%.2f, %.2f]",
+                 can_id, pos_item->valuedouble, ratio_item->valuedouble,
+                 min_item->valuedouble, max_item->valuedouble);
         httpd_resp_sendstr(req, "{\"ok\":true}");
     } else {
         ESP_LOGE(TAG, "CAL fallo 0x%lX", can_id);
@@ -609,6 +631,7 @@ void init_web_server(void)
         reg("/api/config/apply", HTTP_POST, config_apply_post_handler);
         reg("/api/joints", HTTP_GET, joints_get_handler);
         reg("/api/control", HTTP_POST, control_post_handler);
+        reg("/api/error", HTTP_POST, error_post_handler);
         reg("/api/points", HTTP_GET, points_get_handler);
         reg("/api/points", HTTP_POST, points_post_handler);
         reg("/api/points/load", HTTP_POST, points_load_handler);
