@@ -1,6 +1,7 @@
 #include "Arm.hpp"
 #include "CinematicsUtils.hpp"
 #include "joints_storage.h"
+#include "sm_events.hpp"
 #include "esp_log.h"
 #include <cmath>
 #include <cstring>
@@ -104,6 +105,7 @@ void Arm::MoveL(uint8_t pointIndex, float vel, float acc)
     moveVel = vel;
     moveThreshold = acc;
     moveActive = true;
+    jointMoveDeadline = 0;
     xTaskNotifyGive(taskHandle);
 }
 
@@ -125,12 +127,22 @@ void Arm::calibrate(const std::vector<Calibration> &calibration)
         const Calibration &c = calibration[i];
         joints[i].calibrate(c.pos, c.ratio, c.ranges[0], c.ranges[1]);
     }
+    sm_setReady(true);
 }
 
 void Arm::RotateJoint(uint8_t id, float pos, float vel)
 {
     if (id >= joints.size()) return;
     joints[id].setPos(vel, pos);
+    jointMoveDeadline = xTaskGetTickCount() + pdMS_TO_TICKS(JOINT_MOVE_TIMEOUT_MS);
+}
+
+bool Arm::isMoving() const
+{
+    if (moveActive) return true;
+    if (jointMoveDeadline != 0 && xTaskGetTickCount() < jointMoveDeadline)
+        return true;
+    return false;
 }
 
 std::vector<float> Arm::getPos() const

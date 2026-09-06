@@ -10,6 +10,7 @@
 #include "esp_netif.h"
 #include "state_machine.hpp"
 #include "communication_handler.hpp"
+#include "sm_events.hpp"
 #include "Arm.hpp"
 
 static const char *TAG = "CAN";
@@ -76,6 +77,14 @@ extern "C" void app_main(void)
     CommunicationHandler::registerJointService(CMD_CALIBRATION, [](const CAN_Message *msg) {
         uint8_t jointId = (msg->id >> 8) & 0xFF;
         arm.setJointCalibrated(jointId, true);
+    });
+
+    CommunicationHandler::registerJointService(CMD_PAUSE, [](const CAN_Message *msg) {
+        sm_post(SmEvent::PAUSE);
+    });
+
+    CommunicationHandler::registerJointService(CMD_RESUME, [](const CAN_Message *msg) {
+        sm_post(SmEvent::RESUME);
     });
 
     xTaskCreate(watchdog_task, "watchdog", 2048, NULL, 1, NULL);

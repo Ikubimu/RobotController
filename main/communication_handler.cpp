@@ -135,6 +135,6 @@ void CommunicationHandler::run()
             }
         }
 
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }

@@ -1,4 +1,8 @@
 #include "state_machine.hpp"
+#include "sm_events.hpp"
+#include "Arm.hpp"
+
+extern Arm arm;
 
 /* State IDs — redefine or extend in your own code */
 enum : uint8_t {
@@ -29,22 +33,17 @@ StateMachine& StateMachine::get()
 
         root.getState(1)->setSubMachine(&sub);
 
-        /* Example transitions — replace with your own conditions:
-        root.addTransition(0, [] { return flagGet(COMMUNICATION_OK_FLAG); }, SM_IDLE);
-        root.addTransition(1, [] { return flagGet(ERROR_FLAG); }, SM_FAULT);
-        sub.addTransition(0, [] { return flagGet(ACTION_MOVE_FLAG); }, SM_ACTION);
-        sub.addTransition(1, [] { return flagGet(ACTION_STOP_FLAG); }, SM_PAUSE);
-        sub.addTransition(2, [] { return flagGet(ACTION_RESUME_FLAG); }, SM_ACTION);
-        sub.addTransition(2, [] { return flagGet(ACTION_IDLE_FLAG); }, SM_STANDBY);
-        sub.addTransition(1, [] { return flagGet(ACTION_IDLE_FLAG); }, SM_STANDBY);
-        */
+        /* Raiz */
+        root.addTransition(0, [] { return sm_isReady(); }, SM_IDLE);                  /* INIT   -> IDLE */
+        root.addTransition(1, [] { return sm_consume(SmEvent::STOP); }, SM_FAULT);    /* IDLE   -> FAULT (seta) */
+        root.addTransition(2, [] { return sm_consume(SmEvent::RESUME); }, SM_IDLE);   /* FAULT  -> IDLE (reanudar) */
 
-        /* Example entry/exit actions — replace with your own:
-        root.addEntryAction(1, [] { idlePIN.write(true); });
-        root.addExitAction(1, [] { idlePIN.write(false); });
-        root.addEntryAction(2, [] { faultPIN.write(true); });
-        root.addExitAction(2, [] { faultPIN.write(false); });
-        */
+        /* Submaquina de IDLE */
+        sub.addTransition(0, [] { return sm_consume(SmEvent::MOVE); }, SM_ACTION);    /* STANDBY -> ACTION */
+        sub.addTransition(1, [] { return !arm.isMoving(); }, SM_STANDBY);             /* ACTION  -> STANDBY (fin de mov) */
+        sub.addTransition(1, [] { return sm_consume(SmEvent::PAUSE); }, SM_PAUSE);    /* ACTION  -> PAUSE */
+        sub.addTransition(2, [] { return sm_consume(SmEvent::RESUME); }, SM_ACTION);  /* PAUSE   -> ACTION */
+        sub.addTransition(2, [] { return !arm.isMoving(); }, SM_STANDBY);             /* PAUSE   -> STANDBY (fin de mov) */
     }
 
     return root;
@@ -168,6 +167,22 @@ void StateMachine::setCurrentState(uint8_t index)
 uint8_t StateMachine::getCurrentState() const
 {
     return currentState;
+}
+
+bool StateMachine::canDoAction() const
+{
+    if (currentState != 1)   /* solo en IDLE */
+        return false;
+    StateMachine *sub = states[1].getSubMachine();
+    return sub && sub->getCurrentState() == 0;   /* submáquina en STANDBY */
+}
+
+uint8_t StateMachine::getSubState() const
+{
+    if (currentState != 1)
+        return 0xFF;
+    StateMachine *sub = states[1].getSubMachine();
+    return sub ? sub->getCurrentState() : 0xFF;
 }
 
 uint8_t StateMachine::findIndexById(uint8_t id) const

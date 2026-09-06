@@ -61,6 +61,8 @@ public:
     bool addExitAction(uint8_t stateIndex, std::function<void()> action);
     void setCurrentState(uint8_t index);
     uint8_t getCurrentState() const;
+    bool canDoAction() const;
+    uint8_t getSubState() const;
     void update();
 
 private:

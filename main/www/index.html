@@ -85,6 +85,7 @@
         .led.green { background: #00ff00; box-shadow: 0 0 20px #00ff00; }
         .led.red { background: #ff0000; box-shadow: 0 0 20px #ff0000; }
         .led.yellow { background: #ffdd00; box-shadow: 0 0 20px #ffdd00; }
+        .led.orange { background: #ff8c00; box-shadow: 0 0 20px #ff8c00; }
         .led-label { color: #888; font-size: 14px; text-align: center; }
         .field { margin-bottom: 14px; }
         .field label { display: block; color: #aaa; font-size: 12px; margin-bottom: 4px; }
@@ -185,8 +186,8 @@
                 <div class="saved-list" id="saved-list"></div>
             </div>
             <div class="ctrl-leds">
-                <div class="led-wrap"><div class="led off" id="led0"></div><div class="led-label">LED 0</div></div>
-                <div class="led-wrap"><div class="led off" id="led1"></div><div class="led-label">LED 1</div></div>
+                <div class="led-wrap"><div class="led off" id="led0"></div><div class="led-label">LED 1</div></div>
+                <div class="led-wrap"><div class="led off" id="led1"></div><div class="led-label">LED 2</div></div>
             </div>
         </div>
         <hr style="border-color:#3c3c3c; margin: 16px 0;">
@@ -222,6 +223,33 @@
         function setLed(led, color) {
             const el = document.getElementById('led' + led);
             el.className = 'led ' + (color || 'off');
+        }
+
+        let ledBlink = true;
+
+        async function updateState() {
+            let root, sub;
+            try {
+                const r = await fetch('/api/state');
+                const st = await r.json();
+                root = parseInt(st.root);
+                sub = parseInt(st.sub);
+            } catch (e) {
+                return setTimeout(updateState, 500);
+            }
+            ledBlink = !ledBlink;
+            let led1, led2;
+            if (root === 2) {
+                led1 = 'red';
+                led2 = 'red';
+            } else {
+                led1 = (root === 0) ? (ledBlink ? 'orange' : 'off')
+                     : (root === 1) ? 'green' : 'off';
+                led2 = (sub === 1) ? (ledBlink ? 'orange' : 'off') : 'off';
+            }
+            setLed(0, led1);
+            setLed(1, led2);
+            setTimeout(updateState, 500);
         }
 
         function switchTab(name) {
@@ -492,6 +520,7 @@
 
         initControl();
         pollMessages();
+        updateState();
     </script>
 </body>
 </html>

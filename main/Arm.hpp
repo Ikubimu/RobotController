@@ -12,6 +12,7 @@
 #define ARM_DEFAULT_VEL_LIN 50.0f
 #define ARM_DEFAULT_VEL_ANG 2.0f
 #define ARM_DEFAULT_ACC 0.5f
+#define JOINT_MOVE_TIMEOUT_MS 3000
 
 class Arm {
 public:
@@ -23,6 +24,7 @@ public:
     void setJointCalibrated(uint8_t id, bool calibrated);
     void calibrate(const std::vector<Calibration> &calibration);
     void RotateJoint(uint8_t id, float pos, float vel = ARM_DEFAULT_VEL_LIN);
+    bool isMoving() const;
     std::vector<float> getPos() const;
 
 private:
@@ -37,6 +39,7 @@ private:
     float moveVel = 0.0f;
     float moveThreshold = ARM_DEFAULT_ACC;
     volatile bool moveActive = false;
+    volatile TickType_t jointMoveDeadline = 0;
 };
 
 #endif

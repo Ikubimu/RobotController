@@ -12,6 +12,8 @@
 #include "Arm.hpp"
 #include "Config.hpp"
 #include "CinematicsUtils.hpp"
+#include "state_machine.hpp"
+#include "sm_events.hpp"
 
 static const char *TAG = "web";
 extern Arm arm;
@@ -144,8 +146,14 @@ static esp_err_t control_post_handler(httpd_req_t *req)
 
     cJSON *dir_item = cJSON_GetObjectItem(json, "dir");
     if (dir_item && dir_item->valuestring) {
-        ESP_LOGI(TAG, "Control: %s", dir_item->valuestring);
         cJSON_Delete(json);
+        if (!StateMachine::get().canDoAction()) {
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"no permitido en estado actual\"}");
+            return ESP_OK;
+        }
+        ESP_LOGI(TAG, "Control: %s", dir_item->valuestring);
+        sm_post(SmEvent::MOVE);
         httpd_resp_set_type(req, "application/json");
         httpd_resp_sendstr(req, "{\"ok\":true}");
         return ESP_OK;
@@ -172,13 +180,32 @@ static esp_err_t control_post_handler(httpd_req_t *req)
         return ESP_OK;
     }
 
+    if (!StateMachine::get().canDoAction()) {
+        cJSON_Delete(json);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"no permitido en estado actual\"}");
+        return ESP_OK;
+    }
+
     float newDeg = positions[joint] + delta;
     cJSON_Delete(json);
 
     arm.RotateJoint(joint, newDeg, ARM_DEFAULT_VEL_LIN);
+    sm_post(SmEvent::MOVE);
 
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static esp_err_t state_get_handler(httpd_req_t *req)
+{
+    uint8_t root = StateMachine::get().getCurrentState();
+    int sub = StateMachine::get().getSubState();
+    char buf[64];
+    snprintf(buf, sizeof(buf), "{\"root\":%u,\"sub\":%d}", (unsigned)root, sub);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, buf);
     return ESP_OK;
 }
 
@@ -189,6 +216,7 @@ static esp_err_t error_post_handler(httpd_req_t *req)
     httpd_resp_set_type(req, "application/json");
     if (ok) {
         ESP_LOGI(TAG, "Error USER_ERROR enviado por CAN");
+        sm_post(SmEvent::STOP);
         httpd_resp_sendstr(req, "{\"ok\":true}");
     } else {
         httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"tx fallo\"}");
@@ -637,6 +665,7 @@ void init_web_server(void)
         reg("/api/points/load", HTTP_POST, points_load_handler);
         reg("/api/points/delete", HTTP_POST, points_delete_handler);
         reg("/api/fk", HTTP_GET, fk_get_handler);
+        reg("/api/state", HTTP_GET, state_get_handler);
         ESP_LOGI(TAG, "Servidor HTTP iniciado en puerto 80");
     } else {
         ESP_LOGE(TAG, "Error al iniciar servidor HTTP en puerto 80");
