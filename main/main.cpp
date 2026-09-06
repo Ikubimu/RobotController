@@ -74,6 +74,11 @@ extern "C" void app_main(void)
         arm.updateJoint(jointId, vel, pos);
     });
 
+    CommunicationHandler::registerJointService(CMD_ANNOUNCE, [](const CAN_Message *msg) {
+        uint8_t jointId = (msg->id >> 8) & 0xFF;
+        arm.setJointRegistered(jointId, true);
+    });
+
     CommunicationHandler::registerJointService(CMD_CALIBRATION, [](const CAN_Message *msg) {
         uint8_t jointId = (msg->id >> 8) & 0xFF;
         arm.setJointCalibrated(jointId, true);

@@ -23,7 +23,8 @@ public:
     void MoveJTo(const std::vector<float> &targetAngles, float vel = ARM_DEFAULT_VEL_ANG);
     void updateJoint(uint8_t id, float vel, float pos);
     void setJointCalibrated(uint8_t id, bool calibrated);
-    void calibrate(const std::vector<Calibration> &calibration);
+    void setJointRegistered(uint8_t id, bool registered);
+    bool calibrate(const std::vector<Calibration> &calibration);
     void RotateJoint(uint8_t id, float pos, float vel = ARM_DEFAULT_VEL_LIN);
     bool isMoving() const;
     std::vector<float> getPos() const;

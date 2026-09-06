@@ -4,7 +4,7 @@
 #include "esp_log.h"
 
 
-Joint::Joint(uint8_t id) : id(id), pos(0.0f), vel(0.0f), calibrated(false) {}
+Joint::Joint(uint8_t id) : id(id), pos(0.0f), vel(0.0f), calibrated(false), registered(false) {}
 
 void Joint::calibrate(float pos, float ratio, float minRange, float maxRange)
 {
@@ -34,6 +34,16 @@ void Joint::setCalibrated(bool calibrated)
 bool Joint::isCalibrated() const
 {
     return calibrated;
+}
+
+void Joint::setRegistered(bool registered)
+{
+    this->registered = registered;
+}
+
+bool Joint::isRegistered() const
+{
+    return registered;
 }
 
 void Joint::setPos(float vel, float pos)

@@ -10,6 +10,8 @@ public:
     void calibrate(float pos, float ratio, float minRange, float maxRange);
     void setCalibrated(bool calibrated);
     bool isCalibrated() const;
+    void setRegistered(bool registered);
+    bool isRegistered() const;
     void setPos(float vel, float pos);
     void update(float vel, float pos);
     float getPos() const;
@@ -20,6 +22,7 @@ private:
     float pos;
     float vel;
     bool calibrated;
+    bool registered;
 };
 
 #endif

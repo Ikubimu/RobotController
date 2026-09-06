@@ -138,13 +138,27 @@ void Arm::setJointCalibrated(uint8_t id, bool calibrated)
     joints[id - 1].setCalibrated(calibrated);
 }
 
-void Arm::calibrate(const std::vector<Calibration> &calibration)
+void Arm::setJointRegistered(uint8_t id, bool registered)
 {
+    if (id > joints.size() || id < 1) return;
+    joints[id - 1].setRegistered(registered);
+}
+
+bool Arm::calibrate(const std::vector<Calibration> &calibration)
+{
+    for (size_t i = 0; i < calibration.size() && i < joints.size(); i++) {
+        if (!joints[i].isRegistered()) {
+            ESP_LOGW(TAG, "Calibracion abortada: joint %u no registrado", (unsigned)(i + 1));
+            return false;
+        }
+    }
+
     for (size_t i = 0; i < calibration.size() && i < joints.size(); i++) {
         const Calibration &c = calibration[i];
         joints[i].calibrate(c.pos, c.ratio, c.ranges[0], c.ranges[1]);
     }
     sm_setReady(true);
+    return true;
 }
 
 void Arm::RotateJoint(uint8_t id, float pos, float vel)
