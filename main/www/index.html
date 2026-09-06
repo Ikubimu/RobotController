@@ -23,6 +23,11 @@
             border: 1px solid #3c3c3c; padding: 10px; font-family: monospace; font-size: 13px;
             resize: none; outline: none; overflow-y: auto; white-space: pre;
         }
+        #fault-output {
+            width: 100%; height: 200px; background: #2a1014; color: #ff8a8a;
+            border: 1px solid #7a2525; padding: 10px; font-family: monospace; font-size: 13px;
+            resize: none; outline: none; overflow-y: auto; white-space: pre;
+        }
         .stats { margin-top: 8px; color: #888; font-size: 12px; }
         .special-grid { display: flex; gap: 24px; align-items: flex-start; }
         .special-monitor { flex: 1; min-width: 0; }
@@ -130,6 +135,10 @@
                 <h3 style="color:#ccc; margin-bottom:14px;">Monitor CAN</h3>
                 <textarea id="can-output" readonly></textarea>
                 <div class="stats" id="stats">Esperando mensajes...</div>
+
+                <hr style="border-color:#3c3c3c; margin: 24px 0;">
+                <h3 style="color:#ccc; margin-bottom:14px;">Monitor FAULT</h3>
+                <textarea id="fault-output" readonly></textarea>
             </div>
 
             <div class="special-tx">
@@ -282,7 +291,7 @@
             document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
             document.getElementById('tab-' + name).style.display = 'block';
             event.target.classList.add('active');
-            if (name === 'special' || name === 'can') pollMessages();
+            if (name === 'special' || name === 'can') { pollMessages(); pollFaults(); }
         }
 
         function formatMsg(m) {
@@ -315,6 +324,28 @@
 
         let editing = false;
         let pendingAngles = [];
+
+        const FAULT_NAMES = {
+                0: 'NO_ERROR', 1: 'ENCODER', 2: 'COLISION', 3: 'OUT_OF_RANGE', 4: 'MOVE_FAILURE',
+                5: 'CALIBRATION_FAILURE', 6: 'COMM_LOST', 7: 'USER', 170: 'UNKNOWN'
+            };
+
+        async function pollFaults() {
+            const tab = document.getElementById('tab-special');
+            if (tab.style.display === 'none') return;
+
+            try {
+                const r = await fetch('/api/faults');
+                const faults = await r.json();
+                const out = document.getElementById('fault-output');
+                out.value = faults.map(f => {
+                    const sec = Math.floor(f.t / 1000);
+                    const name = FAULT_NAMES[f.err] !== undefined ? FAULT_NAMES[f.err] : '0x' + f.err.toString(16).toUpperCase();
+                    return `[${sec}s] Dev ${f.id} | ${name}`;
+                }).reverse().join('\n');
+            } catch (e) {}
+            setTimeout(pollFaults, 1000);
+        }
 
         async function fetchJoints() {
             const r = await fetch('/api/joints');
@@ -582,6 +613,7 @@
 
         initControl();
         pollMessages();
+        pollFaults();
         updateState();
     </script>
 </body>

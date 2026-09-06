@@ -11,6 +11,7 @@
 #include "state_machine.hpp"
 #include "communication_handler.hpp"
 #include "sm_events.hpp"
+#include "fault_monitor.hpp"
 #include "Arm.hpp"
 
 static const char *TAG = "CAN";
@@ -82,6 +83,18 @@ extern "C" void app_main(void)
     CommunicationHandler::registerJointService(CMD_CALIBRATION, [](const CAN_Message *msg) {
         uint8_t jointId = (msg->id >> 8) & 0xFF;
         arm.setJointCalibrated(jointId, true);
+    });
+
+    CommunicationHandler::registerService(CMD_ERROR, [](const CAN_Message *msg) {
+        uint8_t deviceId = (msg->id >> 8) & 0xFF;
+        uint8_t errorCode = (msg->dlc > 0) ? msg->data[0] : 0xFF;
+        fault_monitor_add(deviceId, errorCode);
+    });
+
+    CommunicationHandler::registerJointService(CMD_ERROR, [](const CAN_Message *msg) {
+        uint8_t deviceId = (msg->id >> 8) & 0xFF;
+        uint8_t errorCode = (msg->dlc > 0) ? msg->data[0] : 0xFF;
+        fault_monitor_add(deviceId, errorCode);
     });
 
     CommunicationHandler::registerJointService(CMD_PAUSE, [](const CAN_Message *msg) {

@@ -14,6 +14,7 @@
 #include "CinematicsUtils.hpp"
 #include "state_machine.hpp"
 #include "sm_events.hpp"
+#include "fault_monitor.hpp"
 
 static const char *TAG = "web";
 extern Arm arm;
@@ -326,6 +327,29 @@ static esp_err_t movej_post_handler(httpd_req_t *req)
 
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static esp_err_t faults_get_handler(httpd_req_t *req)
+{
+    fault_event_t evs[FAULT_MAX_EVENTS];
+    int n = fault_monitor_get(evs, FAULT_MAX_EVENTS);
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr_chunk(req, "[");
+
+    for (int i = 0; i < n; i++) {
+        char buf[96];
+        int off = 0;
+        if (i > 0) off += snprintf(buf + off, sizeof(buf) - off, ",");
+        off += snprintf(buf + off, sizeof(buf) - off,
+            "{\"id\":%u,\"err\":%u,\"t\":%lu}",
+            evs[i].deviceId, evs[i].errorCode, (unsigned long)evs[i].timestampMs);
+        httpd_resp_sendstr_chunk(req, buf);
+    }
+
+    httpd_resp_sendstr_chunk(req, "]");
+    httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
 
@@ -717,6 +741,7 @@ void init_web_server(void)
         reg("/api/points/delete", HTTP_POST, points_delete_handler);
         reg("/api/fk", HTTP_GET, fk_get_handler);
         reg("/api/state", HTTP_GET, state_get_handler);
+        reg("/api/faults", HTTP_GET, faults_get_handler);
         reg("/api/movej", HTTP_POST, movej_post_handler);
         ESP_LOGI(TAG, "Servidor HTTP iniciado en puerto 80");
     } else {
