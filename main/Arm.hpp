@@ -20,6 +20,7 @@ public:
 
     void MoveL(uint8_t pointIndex, float vel = ARM_DEFAULT_VEL_LIN, float acc = ARM_DEFAULT_ACC);
     void MoveJ(uint8_t pointIndex, float vel = ARM_DEFAULT_VEL_ANG, float acc = ARM_DEFAULT_ACC);
+    void MoveJTo(const std::vector<float> &targetAngles, float vel = ARM_DEFAULT_VEL_ANG);
     void updateJoint(uint8_t id, float vel, float pos);
     void setJointCalibrated(uint8_t id, bool calibrated);
     void calibrate(const std::vector<Calibration> &calibration);
@@ -30,6 +31,7 @@ public:
 private:
     void controlTask();
     static void controlTaskEntry(void *arg);
+    void moveJToAngles(const std::vector<float> &targetAngles, float vel);
 
     std::vector<Joint> joints;
     TaskHandle_t taskHandle = nullptr;

@@ -70,22 +70,39 @@ void Arm::MoveJ(uint8_t pointIndex, float vel, float acc)
         return;
     }
 
+    std::vector<float> target(joints.size());
+    for (size_t i = 0; i < joints.size(); i++)
+        target[i] = p->angles[i];
+
+    moveJToAngles(target, vel);
+}
+
+void Arm::MoveJTo(const std::vector<float> &targetAngles, float vel)
+{
+    moveJToAngles(targetAngles, vel);
+}
+
+void Arm::moveJToAngles(const std::vector<float> &targetAngles, float vel)
+{
     std::vector<float> currentAngles = getPos();
 
     float maxTime = 0.0f;
-    for (uint8_t i = 0; i < joints.size(); i++) {
-        float dist = fabsf(p->angles[i] - currentAngles[i]);
+    for (size_t i = 0; i < joints.size() && i < targetAngles.size(); i++) {
+        float dist = fabsf(targetAngles[i] - currentAngles[i]);
         float t = (vel > 1e-6f) ? dist / vel : 0.0f;
         if (t > maxTime) maxTime = t;
     }
 
-    ESP_LOGI(TAG, "MoveJ punto %d, maxTime: %.3f", pointIndex, maxTime);
+    ESP_LOGI(TAG, "MoveJ, maxTime: %.3f", maxTime);
 
-    for (uint8_t i = 0; i < joints.size(); i++) {
-        float diff = p->angles[i] - currentAngles[i];
+    for (size_t i = 0; i < joints.size() && i < targetAngles.size(); i++) {
+        float diff = targetAngles[i] - currentAngles[i];
         float jointVel = (maxTime > 1e-6f) ? diff / maxTime : 0.0f;
-        joints[i].setPos(jointVel, p->angles[i]);
+        joints[i].setPos(jointVel, targetAngles[i]);
     }
+
+    jointMoveDeadline = xTaskGetTickCount() +
+        pdMS_TO_TICKS((uint32_t)(maxTime * 1000.0f) + 1000);
 }
 
 void Arm::MoveL(uint8_t pointIndex, float vel, float acc)

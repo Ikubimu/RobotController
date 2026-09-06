@@ -281,6 +281,54 @@ static esp_err_t send_cal_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t movej_post_handler(httpd_req_t *req)
+{
+    char buf[512];
+    int len = req->content_len;
+    if (len >= (int)sizeof(buf)) len = sizeof(buf) - 1;
+    httpd_req_recv(req, buf, len);
+    buf[len] = 0;
+
+    cJSON *json = cJSON_Parse(buf);
+    if (!json) {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"json invalido\"}");
+        return ESP_OK;
+    }
+
+    cJSON *angles = cJSON_GetObjectItem(json, "angles");
+    cJSON *vel_item = cJSON_GetObjectItem(json, "vel");
+    if (!cJSON_IsArray(angles)) {
+        cJSON_Delete(json);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"faltan angles\"}");
+        return ESP_OK;
+    }
+
+    if (!StateMachine::get().canDoAction()) {
+        cJSON_Delete(json);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"no permitido en estado actual\"}");
+        return ESP_OK;
+    }
+
+    std::vector<float> target;
+    int n = cJSON_GetArraySize(angles);
+    for (int i = 0; i < n && i < NUM_JOINTS; i++) {
+        cJSON *item = cJSON_GetArrayItem(angles, i);
+        target.push_back(item ? (float)item->valuedouble : 0.0f);
+    }
+    float vel = vel_item ? (float)vel_item->valuedouble : 30.0f;
+    cJSON_Delete(json);
+
+    arm.MoveJTo(target, vel);
+    sm_post(SmEvent::MOVE);
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
 static esp_err_t points_get_handler(httpd_req_t *req)
 {
     char buf[512];
@@ -639,7 +687,7 @@ void init_web_server(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80;
-    config.max_uri_handlers = 16;
+    config.max_uri_handlers = 20;
 
     httpd_handle_t server = NULL;
     if (httpd_start(&server, &config) == ESP_OK) {
@@ -666,6 +714,7 @@ void init_web_server(void)
         reg("/api/points/delete", HTTP_POST, points_delete_handler);
         reg("/api/fk", HTTP_GET, fk_get_handler);
         reg("/api/state", HTTP_GET, state_get_handler);
+        reg("/api/movej", HTTP_POST, movej_post_handler);
         ESP_LOGI(TAG, "Servidor HTTP iniciado en puerto 80");
     } else {
         ESP_LOGE(TAG, "Error al iniciar servidor HTTP en puerto 80");

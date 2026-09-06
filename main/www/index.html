@@ -59,6 +59,11 @@
             font-family: monospace; font-size: 14px; cursor: pointer; border-radius: 4px;
         }
         .save-btn:hover { background: #36a336; }
+        .cancel-btn {
+            background: #555; color: #fff; border: none; padding: 8px 20px;
+            font-family: monospace; font-size: 14px; cursor: pointer; border-radius: 4px;
+        }
+        .cancel-btn:hover { background: #6a6a6a; }
         .saved-title { color: #ccc; font-size: 14px; margin-bottom: 8px; }
         .saved-list { margin-top: 8px; max-height: 300px; overflow-y: auto; }
         .saved-item {
@@ -177,6 +182,10 @@
         <div class="ctrl-grid">
             <div class="ctrl-left">
                 <div id="joints-container"></div>
+                <div style="display:flex; gap:12px; margin-top:12px;">
+                    <button class="save-btn" onclick="applyMove()">Aplicar</button>
+                    <button class="cancel-btn" onclick="cancelMove()">Cancelar</button>
+                </div>
             </div>
             <div class="ctrl-right">
                 <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
@@ -288,22 +297,59 @@
             setTimeout(pollMessages, 1000);
         }
 
+        let editing = false;
+        let pendingAngles = [];
+
         async function fetchJoints() {
             const r = await fetch('/api/joints');
             const data = await r.json();
+            if (editing) return;
             for (let i = 0; i < data.joints.length; i++) {
                 document.getElementById('angle-' + i).textContent = data.joints[i].toFixed(1);
             }
         }
 
+        function readAngles() {
+            const angles = [];
+            const container = document.getElementById('joints-container');
+            const rows = container.querySelectorAll('.joint-row');
+            rows.forEach((row, i) => {
+                const el = document.getElementById('angle-' + i);
+                angles.push(parseFloat(el.textContent));
+            });
+            return angles;
+        }
+
         async function jointClick(joint, delta) {
+            if (!editing) {
+                pendingAngles = readAngles();
+                editing = true;
+            }
+            pendingAngles[joint] = (pendingAngles[joint] || 0) + delta;
+            document.getElementById('angle-' + joint).textContent = pendingAngles[joint].toFixed(1);
+        }
+
+        async function cancelMove() {
+            editing = false;
+            pendingAngles = [];
+            fetchJoints();
+        }
+
+        async function applyMove() {
+            const angles = readAngles();
             try {
-                await fetch('/api/control', {
+                const r = await fetch('/api/movej', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({joint, delta})
+                    body: JSON.stringify({angles, vel: 30})
                 });
+                const result = await r.json();
+                if (!result.ok && result.error) {
+                    console.log('MoveJ rechazado: ' + result.error);
+                }
             } catch (e) {}
+            editing = false;
+            pendingAngles = [];
             fetchJoints();
         }
 
@@ -505,9 +551,9 @@
                 row.className = 'joint-row';
                 row.innerHTML = `
                     <span class="joint-label">Joint ${i}</span>
-                    <button class="joint-btn" onclick="jointClick(${i}, -0.5)">−</button>
+                    <button class="joint-btn" onclick="jointClick(${i}, -5)">−</button>
                     <span class="joint-angle" id="angle-${i}">0.0</span>
-                    <button class="joint-btn" onclick="jointClick(${i}, 0.5)">+</button>
+                    <button class="joint-btn" onclick="jointClick(${i}, 5)">+</button>
                 `;
                 container.appendChild(row);
             }
