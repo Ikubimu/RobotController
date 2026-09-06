@@ -43,7 +43,7 @@ static void watchdog_task(void *arg)
 {
     while (1) {
         CommunicationHandler::sendWatchdog();
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
