@@ -24,6 +24,11 @@
             resize: none; outline: none; overflow-y: auto; white-space: pre;
         }
         .stats { margin-top: 8px; color: #888; font-size: 12px; }
+        .special-grid { display: flex; gap: 24px; align-items: flex-start; }
+        .special-monitor { flex: 1; min-width: 0; }
+        .special-tx { flex: 1; min-width: 0; }
+        .special-forms { display: flex; gap: 24px; align-items: flex-start; }
+        .special-forms > div { flex: 1; min-width: 0; }
         .joint-row {
             display: flex; align-items: center; gap: 12px;
             padding: 8px 0; border-bottom: 1px solid #3c3c3c;
@@ -115,14 +120,68 @@
 <body>
     <h1>RobotController</h1>
     <div class="tabs">
-        <button class="active" onclick="switchTab('can')">Monitor CAN</button>
-        <button onclick="switchTab('tx')">TX Manual</button>
+        <button class="active" onclick="switchTab('special')">Opciones especiales</button>
         <button onclick="switchTab('ctrl')">Control</button>
         <button onclick="switchTab('cfg')">Config</button>
     </div>
-    <div id="tab-can" class="tab-content">
-        <textarea id="can-output" readonly></textarea>
-        <div class="stats" id="stats">Esperando mensajes...</div>
+    <div id="tab-special" class="tab-content">
+        <div class="special-grid">
+            <div class="special-monitor">
+                <h3 style="color:#ccc; margin-bottom:14px;">Monitor CAN</h3>
+                <textarea id="can-output" readonly></textarea>
+                <div class="stats" id="stats">Esperando mensajes...</div>
+            </div>
+
+            <div class="special-tx">
+                <div class="special-forms">
+                    <div>
+                        <h3 style="color:#ccc; margin-bottom:14px;">TX Manual</h3>
+
+                        <div class="field">
+                            <label>ID (hex)</label>
+                            <input type="text" id="tx-id" value="123" placeholder="ej: 123">
+                        </div>
+                        <div class="field">
+                            <label>Posición (grados)</label>
+                            <input type="number" id="tx-pos" value="0" step="0.1" placeholder="0.0">
+                        </div>
+                        <div class="field">
+                            <label>Velocidad (rad/s)</label>
+                            <input type="number" id="tx-vel" value="0" step="0.01" placeholder="0.0">
+                        </div>
+                        <button id="tx-btn" onclick="sendCanMsg()">Enviar CAN</button>
+                        <div id="tx-status"></div>
+                    </div>
+
+                    <div>
+                        <h3 style="color:#ccc; margin-bottom:14px;">Calibración</h3>
+
+                        <div class="field">
+                            <label>ID (hex)</label>
+                            <input type="text" id="cal-id" value="456" placeholder="ej: 456">
+                        </div>
+                        <div class="field">
+                            <label>Posición (grados)</label>
+                            <input type="number" id="cal-pos" value="0" step="0.1" placeholder="0.0">
+                        </div>
+                        <div class="field">
+                            <label>Ratio</label>
+                            <input type="number" id="cal-ratio" value="0" step="0.01" placeholder="0.0">
+                        </div>
+                        <div class="field">
+                            <label>Mínimo</label>
+                            <input type="number" id="cal-min" value="0" step="0.01" placeholder="0.0">
+                        </div>
+                        <div class="field">
+                            <label>Máximo</label>
+                            <input type="number" id="cal-max" value="0" step="0.01" placeholder="0.0">
+                        </div>
+                        <button id="tx-btn" onclick="sendCal()" style="background:#2d8c2d;">Enviar Calibración</button>
+                        <div id="cal-status" style="margin-top: 10px; font-size: 13px; color: #888;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="tab-cfg" class="tab-content" style="display:none">
@@ -133,49 +192,6 @@
         <button id="tx-btn" onclick="validateConfig()">Set config</button>
         <button id="tx-btn" onclick="applyConfig()" style="background:#2d8c2d;">Calibration</button>
         <div id="cfg-status"></div>
-    </div>
-
-    <div id="tab-tx" class="tab-content" style="display:none">
-        <div class="field">
-            <label>ID (hex)</label>
-            <input type="text" id="tx-id" value="123" placeholder="ej: 123">
-        </div>
-        <div class="field">
-            <label>Posición (grados)</label>
-            <input type="number" id="tx-pos" value="0" step="0.1" placeholder="0.0">
-        </div>
-        <div class="field">
-            <label>Velocidad (rad/s)</label>
-            <input type="number" id="tx-vel" value="0" step="0.01" placeholder="0.0">
-        </div>
-        <button id="tx-btn" onclick="sendCanMsg()">Enviar CAN</button>
-        <div id="tx-status"></div>
-
-        <hr style="border-color:#3c3c3c; margin: 24px 0;">
-        <h3 style="color:#ccc; margin-bottom:14px;">Calibración</h3>
-
-        <div class="field">
-            <label>ID (hex)</label>
-            <input type="text" id="cal-id" value="456" placeholder="ej: 456">
-        </div>
-        <div class="field">
-            <label>Posición (grados)</label>
-            <input type="number" id="cal-pos" value="0" step="0.1" placeholder="0.0">
-        </div>
-        <div class="field">
-            <label>Ratio</label>
-            <input type="number" id="cal-ratio" value="0" step="0.01" placeholder="0.0">
-        </div>
-        <div class="field">
-            <label>Mínimo</label>
-            <input type="number" id="cal-min" value="0" step="0.01" placeholder="0.0">
-        </div>
-        <div class="field">
-            <label>Máximo</label>
-            <input type="number" id="cal-max" value="0" step="0.01" placeholder="0.0">
-        </div>
-        <button id="tx-btn" onclick="sendCal()" style="background:#2d8c2d;">Enviar Calibración</button>
-        <div id="cal-status" style="margin-top: 10px; font-size: 13px; color: #888;"></div>
     </div>
 
     <div id="tab-ctrl" class="tab-content" style="display:none">
@@ -266,7 +282,7 @@
             document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
             document.getElementById('tab-' + name).style.display = 'block';
             event.target.classList.add('active');
-            if (name === 'can') pollMessages();
+            if (name === 'special' || name === 'can') pollMessages();
         }
 
         function formatMsg(m) {
@@ -276,7 +292,7 @@
         }
 
         async function pollMessages() {
-            const tab = document.getElementById('tab-can');
+            const tab = document.getElementById('tab-special');
             if (tab.style.display === 'none') return;
 
             try {
